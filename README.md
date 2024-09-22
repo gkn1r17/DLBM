@@ -9,7 +9,7 @@ To run on distributed cluster (assuming SLURM environment):
       sbatch runLBM.slurm LBM.jar NUMNODES 2 SETTINGS settings
 
 
-################################
+################################ CLUSTERING/ PARALLELIZATION - note this is just for time efficiency when dispersing and has no bearing on actual behaviour of the model #######################################
 
 If using a new TM or running on a new distributed cluster if will be necessary to change the distribution/parallelization configuration. To do this:
 1) Add "CLUST_FILE:[clusterfile]" to your settings file - pointing to your new cluster file (
@@ -23,7 +23,11 @@ If using a new TM or running on a new distributed cluster if will be necessary t
 
 4) Run, ensuring you change the number after "NUMNODES" to your number of computers/top level clusters
 
-################################
+To create a new cluster file:
+1) Each line is a location, ordered by index in the TM.
+2) The first column is locations with a high degree of movement between them (1st level clusters). Each will be housed on a separate core.
+3) The second column organizes 1st level clusters into a small number of large 2nd level clusters with very little movement between them. Each will be housed on a separate computer.
+(I can at some point upload an R script for producing both types of clusters)
 
-
+Note: When running on a single compter simply set all second level clusters to "0", you can even fully serialize application by setting all first level clusters to "0" to. The one computer cluster file for the UVic TM is called "nondist6386.csv" and is available in this folder, simply add CLUST_FILE:nondist6386.csv to settings and set NUMNODES in your command argument and nodes in runLBM.slurm to 1.
 
