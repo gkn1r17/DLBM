@@ -8,8 +8,17 @@ To run on distributed cluster (assuming SLURM environment):
    
       sbatch runLBM.slurm LBM.jar NUMNODES 2 SETTINGS settings
 
+Output:
+In output folder:
+ - Abundance of every lineage in every location - CSV for each regular time interval (default = 100 years, see settings file for details)
+ - Copy of settings
+ - Empty file beginning "seed" with name providing random seed used for each cluster in case need to recreate results
+In run folder (outside output file) 
+ - SLURM output file: Total number of lineages in every location at regular time intervals (default = 1 year, see settings) in (will add more details when uploaded R processing code).
 
-################################ CLUSTERING/ PARALLELIZATION - note this is just for time efficiency when dispersing and has no bearing on actual behaviour of the model #######################################
+
+
+################################ CLUSTERING/ PARALLELIZATION - note this is just for computational efficiency w/ no effect on actual model behaviour #######################################
 
 If using a new TM or running on a new distributed cluster if will be necessary to change the distribution/parallelization configuration. To do this:
 1) Add "CLUST_FILE:[clusterfile]" to your settings file - pointing to your new cluster file (
