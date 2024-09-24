@@ -5,9 +5,7 @@ To run on distributed cluster (assuming SLURM environment):
 1) Move run folder onto server
 2) Modify "settings" file as required or copy and create new settings file.
 3) Navigate to run folder on server
-4) Submit jobs with below command. NUMNODES refers to the number of computers you wish to run distributed across,
-   which should always match the number of 2nd level clusters in your cluster file.
-   For UVic (6386 box) TM running on Iridis 6 it is optimal to use the "clusters6386.csv" cluster file which is set up for 2 computers, hence "NUMNODES 2"
+4) Submit jobs with below command:
    
       sbatch runLBM.slurm LBM.jar NUMNODES 2 SETTINGS settings
 
