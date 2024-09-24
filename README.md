@@ -1,3 +1,6 @@
+************** Dispersed Lineage Based Model ****************
+Geoff Neumann, 2024
+
 To run on distributed cluster (assuming SLURM environment):
 1) Move run folder onto server
 2) Modify "settings" file as required or copy and create new settings file.
@@ -16,6 +19,12 @@ In output folder:
 In run folder (outside output file) 
  - SLURM output file: Total number of lineages in every location at regular time intervals (default = 1 year, see settings) in (will add more details when uploaded R processing code).
 
+Troubleshooting:
+Output while running will appear in the run folder a file "slurm-[job id].out" where [job id] is a numeric code that you will see printed to console after you start each job. 
+If jobs end immediately and you see the below error (with different numbers) in the output file then this appears to be a random error with slurm (or the Iridis cluster?) - just rerun the job. It will probably be necessary to rerun each job multiple times before one successfully runs.
+
+red6,069: Starting fmpjd in port 11030...is not possible! (Host red6,069 is unknown)
+red6,070: Starting fmpjd in port 11030...is not possible! (Host red6,070 is unknown)
 
 
 ################################ CLUSTERING/ PARALLELIZATION - note this is just for computational efficiency w/ no effect on actual model behaviour #######################################
