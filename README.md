@@ -1,3 +1,6 @@
+########## PLEASE NOTE: THIS IS A WORK IN PROGRESS - IT IS FUNCTIONAL BUT THE CODE IS PRESENTED "AS IS" ##########
+
+
 ************** Dispersed Lineage Based Model ****************
 Geoff Neumann, 2024
 
