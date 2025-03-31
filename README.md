@@ -28,7 +28,21 @@ red6,069: Starting fmpjd in port 11030...is not possible! (Host red6,069 is unkn
 red6,070: Starting fmpjd in port 11030...is not possible! (Host red6,070 is unknown)
 
 
-################################ CLUSTERING/ PARALLELIZATION - note this is just for computational efficiency w/ no effect on actual model behaviour #######################################
+################################ DEVELOPMENT ADVICE 
+
+(this section will contain advice on navigating the code - work in progress)
+
+The classes you may need to change include:
+lineages.Lineage - growth, mortality
+lineages.SelLineage - environmental selection
+lbm.GridBox - represents a location; modify to change dispersal (dispBinomial(...) ), the overall eco+dispersal loop (growDieAll(...) ), population initialisation (initPop(...) ), topt distribution (initIDSizeTemp(...) ).
+lbm.Settings - to add new settings
+ 
+
+lbm.Runner contains code to launch the model and manage parallization so will generally be ignored when changing model behaviour
+
+
+################################ CLUSTERING/ PARALLELIZATION - note this is just for computational efficiency w/ no effect on actual model behaviour 
 
 If using a new TM or running on a new distributed cluster if will be necessary to change the distribution/parallelization configuration. To do this:
 1) Add "CLUST_FILE:[clusterfile]" to your settings file - pointing to your new cluster file (
