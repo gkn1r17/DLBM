@@ -1,9 +1,15 @@
+/**
+ * Take settings to configure the simulation from the command line or settings file
+ */
+
 package lbm;
 
 import java.util.Arrays;
 import java.util.Scanner;
+import java.util.stream.IntStream;
 
 import util.FileIO;
+//import util.MakeArtificialTM;
 
 import java.io.File;
 
@@ -11,111 +17,145 @@ public class Settings{
 	
 	
 	/************** SCIENTIFIC SETTINGS *********************************/
-	/********************************************************************/
-	/********************************************************************/
-	/********************************************************************/
-	
-			public static int DURATION = 1; //total duration in years
+			
+			//Total simulation duration in years
+			public static int DURATION = 10000;
+			/**number of individuals per lineage at start */
 			public static int INIT_LIN_SIZE = 1;
-			public static int[] SEED = new int[] {-1}; //{1794952784,1132657726};//new int[] {-1};
-			public static int CC = 100000;
-					/** Initial population, derived as CC * 0.875 - DO NOT CHANGE */
-					public static int INITIAL_P;
+			/**random seed for simulation ( -1 = randomly select random seed) */
+			public static int[] SEED = new int[] {-1};
+			/**total simulation duration in years */
+			public static int K = 100;
+			/**starting population of each location (grid box) divided by K*/
+			/**this should be the same as the equilibrium population, i.e. the population at which growth == mortality*/
+			/**with growth = 0.8 and mortality = 0.1 this equals 0.875*/
+			public static double P_0 = 0.875;
+					/**initial population size of each location, i.e. K * P_0 - DO NOT CHANGE */
+					public static double INITIAL_P;
 
 			
-			public static boolean TRACER_MODE =false;
-			
-			/** TRANSPORT MATRIX */
+			//TRANSPORT MATRIX
+			/**number of locations in TM*/
 			public static int NUM_BOXES = 6386;
-			public static String TM_FILE = "TMD6386.txt";
-			public static int NUM_ROWS = 1;
-			public static int NUM_COLS = 1;
-			public static double UNIFORM_DISP = 0.0001;
-			public static int NUM_CORES = 40;
-
+			/**relative path to txt file where TM is held */
+			public static String TM_FILE = "TMD6386bsFilt.txt";
 
 			
-			/** GROWTH */
-			public static double MORTALITY_DAY = 0.1; //mortality per day
-			public static double GROWTH_RATE_DAY = 0.8; //growth rate per day
-			public static double GROWTH_HOURS = 24.0 * 5;
+			// GROWTH
+			/**mortality per day*/
+			public static double MORTALITY_DAY = 0.1;
+			/**growth rate per day*/
+			public static double GROWTH_RATE_DAY = 0.8;
+			/**number of hours between growth/mortality timesteps*/
+			public static double GROWTH_HOURS = 24.0; //
 		
 			
-			/** DISPERSAL */
-			public static double DISP_HOURS = 24.0 * 5;
-			public static String VOLS_FILE = "vols6386.csv"; 
-			public static double DISP_COEF = 1;
-		
-		
-					/** Growth/Dispersal - derived parameters DO NOT CHANGE */
+			// DISPERSAL
+			/**number of hours between dispersal timesteps*/
+			public static double DISP_HOURS = 24.0;
+			/**path to file containing volumes (volume of each location relative to mean)*/
+			public static String VOL_FILE = "vols6386.csv"; 
+			/**multiply each dispersal pathway by this*/
+			public static double DISP_SCALER = 1;
+					// Growth/Dispersal - derived parameters DO NOT CHANGE
 					static double GROWTH_PER_DISP;
 					public static double GROWTH_RATE;
 					public static double MORTALITY;
 					//by default with 1 day ts for growth/mortality and dispersal:
 								//GROWTH_PER_DISP=1, GROWTH_RATE=GROWTH_RATE_DAY, MORTALITY=MORTALITY_DAY 
 			
-			/** SELECTION */
+			//SELECTION
+			/**niche width*/
 			public static float W = 12.0f;
+			/**path to temperature file (tenv of each location)*/
 			public static String TEMP_FILE = null; //"temps6386-daily.csv";
+			/**topts of lineages will be uniformly distributed from tenv - (TEMP_START_RANGE / 2) to tenv + (TEMP_START_RANGE / 2) */
 			public static float TEMP_START_RANGE = 10.0f;
 			
 			
-			/** DORMANCY */	
-			public static double SIZE_REFUGE = 0.5;
+			//DORMANCY	
+			/**proportion of each lineage randomly selected to "sink" (be removed from growth/mortality but not dispersal processes) each growth timestep*/
+				/**same proportion of individuals from sunken lineages are unsunk*/
+			public static double SIZE_REFUGE = 0;
+
+			
+			/** NOT FOR FULL SIMULATIONS - switch on for running special simulation to calculate tmins*/
+			public static boolean TRACER_MODE =false;
 
 			
 			
-			
-	/************** REPORTING/OPTIMIZATION SETTINGS *********************************/
-	/********************************************************************/
-	/********************************************************************/
-	/********************************************************************/
+	/************** OUTPUT/LOADING SETTINGS *********************************/
 
-
-			/** OUTPUT */
-			public static String FILE_OUT = "Maps/blah";
-			public static int SAVE_INTV = 10000;
-			public static double REPORT_INTV = 1;
-			public static boolean OUTPUT_TOPT = false;
-			public static boolean REPORT_HALF = false;
-					/** DERIVED - DON'T CHANGE */
+			//OUTPUT
+			/**path for where to save output*/
+			public static String FILE_OUT = "Maps/100neut";
+					/**extracted from FILE_OUT - don't change */
 					public static String DIR_OUT;
+			/**time in seconds before outputs message just to show hasn't crashed - if no proper update yet happened*/ 
+			public static long TIME_THRESH = 100;
+			/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
+			public static String REPORT_TIMESTEPS_FILE = "timesteps.csv"; //null
+			/**default days for saving (assuming max 10,000 year: log 10 space years at intervals of 0.1, converted to days by multiplying by 365 and rounding)*/
+			public final static int[] DEFAULT_SAVE_TIMESTEPS = new int[]{0,36,46,58,73,92,115,145,183,230,290,365,460,578,728,917,1154,1453,1829,2303,2899,3650,4595,5785,7283,9168,11542,14531,18293,23030,28993,36500,45951,57849,72827,91684,115423,145309,182933,230299,289930,365000,459508,578486,728271,916839,1154231,1453091,1829333,2302994,2899298,3650000};
+				/**days extract from REPORT_TIMESTEPS_FILE (or default) - don't change*/
+				public static int[] SAVE_TIMESTEPS = DEFAULT_SAVE_TIMESTEPS;
+				
+			/**if true simulation will finish when global diversity = 1*/
+			public static boolean STOP_AT_1; 
+
 
 		
-			/** LOADING PREVIOUS RUNS */
-			public static int LOAD_YEAR = 0; //1;
-			public static String LOAD_FILE = null; //"Maps/D";
-			public static int LOAD_STEP;
-			public static int LOAD_YEAR_SCAN_START = 0;
-			public static int LOAD_YEAR_SCAN_INTV = 10;
-			public static int LOAD_HOUR = 0; //33120; //only use when loading from job saved just before HPC eviction with EXPERIMENT_HOURS
-					/** DERIVED - DON'T CHANGE */
+			// LOADING PREVIOUS RUNS
+			/**if loading previous run, gives day and hour to load 
+			 * format = day:hour (eg: 365:8 for hour 8 on day 365)
+			 * :0 can be omitted*/		
+			public static String LOAD_DAY_STRING = null;
+				/**day extracted from LOAD_DAY_STRING - don't change*/
+				public static int LOAD_DAY = 0;
+				/**hour extracted from LOAD_DAY_STRING - don't change*/
+				public static int LOAD_HOUR = 0;
+
+			
+			/**path for where to load file*/
+			public static String LOAD_FILE = null;
+					/**extracted from LOAD_FILE - don't change */
 					public static String LOAD_DIR;
-
-			/** PARALLELIZATION / DISTRIBUTION and miscellaneous purely technical options */	
+					
+	/************** PARALLELIZATION / DISTRIBUTION AND OTHER PURELY TECHNICAL SETTINGS *********************************/
+			
+			/**csv file specifying how locations are divided into clusters and clusters into nodes
+			 * clusters = parallelized within one computer
+			 * nodes = parallelized across computers*/
 			public static String CLUST_FILE = "clusters6386c.csv";
-			public static long TIME_THRESH = 100; //time in seconds before outputs message just to show hasn't crashed - if no proper update yet happened 
-			public static double EXPERIMENT_HOURS = 60; //should be set to length of time available on HPC, to ensure prints loadable output immediately before job evicted
-		
-			public static String SUBSET_FILE = null; //"pacAtlSmpl.csv";
-			public static String MODULE_FILE = null; //"100k10clusts.csv";
-			public static boolean DO_SUBSETS = false;
-			public static int SUBSET_INTV = 10;
-			public static int SMPL_SIZE = 10;
-			public static int SINK_OFFSET = (int) 1e9;
-			public static boolean SAVE_DAILY = false;
-			public static boolean REPORT_DAILY = false;
-			public static double REPORT_GEN = 0.01;
-	
-	
-		
+			/**should be set to length of time available on HPC, to ensure prints loadable output immediately before job evicted*/
+			public static double EXPERIMENT_HOURS = 60;
+			/**Used internally to distinguish sunken lineages*/
+			public final static int SINK_OFFSET = (int) 1e9;
+
+
+			
+			
+			
+			
+			
+			
+			
+	/**Loads settings from settings file or command line. 
+	 * Command line may contain "SETTINGS [name of settings file]" 
+	 * and may instead of/ additionally contain settings listed as "[name of setting] [value of setting]"
+	 * (in all cases replace the square brackets and text inside with your own text)	
+	 * 
+	 * @param args command line arguments as array
+	 * @param nodeNum current node so only prints info about settings once (on node 0)
+	 * @param verbose if true prints info about settings to screen
+	 */
 	public static void loadSettings(String[] args, int nodeNum, boolean verbose) {
 		int argI = 0;
 		Scanner fileReader = null;
 
         
-		try{
-			if(args.length > 1 && args[0].trim().toUpperCase().equals("SETTINGS")) { //if settings file specified
+		try{//if settings file specified
+			if(args.length > 1 && args[0].trim().toUpperCase().equals("SETTINGS")) { 
 				fileReader = new Scanner(new File(args[1]));
 				argI += 2;
 				if(nodeNum == 0 && verbose)
@@ -154,18 +194,23 @@ public class Settings{
 		            	case "GROWTH_HOURS":
 		            		GROWTH_HOURS = Double.parseDouble(varVal);
 		            		break;		            	
-		            	case "CC":
-			            	CC = (int) Double.parseDouble(varVal);
+		            	case "K":
+			            	K = (int) Double.parseDouble(varVal);
 			            	break;
-		            	case "INITIAL_P":	
-			            	INITIAL_P = (int) Double.parseDouble(varVal);
-			            	break;
+			            					//(legacy compatibility)
+							            	case "CC":
+								            	K = (int) Double.parseDouble(varVal);
+								            	break;
+								            //
 		            	case "W":
 		            		W = Float.parseFloat(varVal);
 		            		break;	
 
 		            	case "DURATION":
 		            		DURATION = Integer.parseInt(varVal);
+		            		break;
+		            	case "STOP_AT_1":
+		            		STOP_AT_1 = varVal.toLowerCase().equals("TRUE");
 		            		break;
 
 		            		
@@ -181,8 +226,8 @@ public class Settings{
 		            	case "DISP_HOURS":
 		            		DISP_HOURS = Float.parseFloat(varVal);
 		            		break;
-		            	case "DISP_COEF":
-		            		DISP_COEF = Double.parseDouble(varVal);
+		            	case "DISP_SCALER":
+		            		DISP_SCALER = Double.parseDouble(varVal);
 		            		break;
 		            	case "TM_FILE":
 		            		TM_FILE = varVal;
@@ -193,8 +238,11 @@ public class Settings{
 		            		else
 		            			LOAD_FILE = varVal;
 		            		break;
-		            	case "LOAD_YEAR":
-		            		LOAD_YEAR = Integer.parseInt(varVal);
+		            	case "LOAD_DAY_STRING":
+		            		LOAD_DAY_STRING = varVal.toLowerCase();
+		            		break;
+		            	case "LOAD_DAY": //legacy
+		            		LOAD_DAY_STRING = varVal.toLowerCase();
 		            		break;
 		            	case "TRACER_MODE":
 		            		TRACER_MODE = varVal.toLowerCase().equals("true");
@@ -205,20 +253,23 @@ public class Settings{
 		            	case "SEED":
 		            		SEED = Arrays.asList(varVal.split(",")).stream().mapToInt(e -> Integer.parseInt(e)).toArray();
 		            		break;
-		            	case "SAVE_INTV":
-		            		SAVE_INTV = Integer.parseInt(varVal);
-		            		break;
 		            	case "TEMP_START_RANGE":
 		            		TEMP_START_RANGE = Float.parseFloat(varVal);
 		            		break;
 		            	case "CLUST_FILE":
 		            		CLUST_FILE = varVal.trim();
 		            		break;
-		            	case "VOLS_FILE":
+		            	case "VOL_FILE":
 		            		if(varVal.toLowerCase().equals("none"))
-		            			VOLS_FILE = null;
+		            			VOL_FILE = null;
 		            		else
-		            			VOLS_FILE = varVal;
+		            			VOL_FILE = varVal;
+		            		break;
+		            	case "VOLS_FILE": //back compatibility
+		            		if(varVal.toLowerCase().equals("none"))
+		            			VOL_FILE = null;
+		            		else
+		            			VOL_FILE = varVal;
 		            		break;
 		            	case "TEMP_FILE":
 		            		if(varVal.toLowerCase().equals("none"))
@@ -232,65 +283,23 @@ public class Settings{
 		            	case "EXPERIMENT_HOURS":
 		            		EXPERIMENT_HOURS = Double.parseDouble(varVal);
 		            		break;
-		            	case "LOAD_HOUR":	
-		            		LOAD_HOUR =  Integer.parseInt(varVal);
-		            		break;
-		            	case "SUBSET_FILE":
-		            		if(varVal.toLowerCase().equals("none"))
-		            			SUBSET_FILE = null;
-		            		else
-		            			SUBSET_FILE = varVal;
-		            		break;	
-		            	case "MODULE_FILE":
-			            		if(varVal.toLowerCase().equals("none"))
-			            			MODULE_FILE = null;
-			            		else
-			            			MODULE_FILE = varVal;
-			            		break;	
-		            	case "OUTPUT_TOPT":
-		            		OUTPUT_TOPT = varVal.toLowerCase().equals("true");
-		            		break;
-		            	case "DO_SUBSETS":
-		            		DO_SUBSETS = varVal.toLowerCase().equals("true");
-		            		break;	
-		            	case "SUBSET_INTV":
-		            		SUBSET_INTV =  Integer.parseInt(varVal);
-		            		break;
-		            	case "REPORT_HALF":
-		            		REPORT_HALF = varVal.toLowerCase().equals("true");
-		            		break;
-		            	case "LOAD_YEAR_SCAN_START":
-		            		LOAD_YEAR_SCAN_START = Integer.parseInt(varVal);
-		            		break;
-		            	case "LOAD_YEAR_SCAN_INTV":
-		            		LOAD_YEAR_SCAN_INTV = Integer.parseInt(varVal);
-		            		break;
-		            	case "SMPL_SIZE":
-		            		SMPL_SIZE = Integer.parseInt(varVal); 
-		            		break;
-		            	case "SAVE_DAILY":
-		            		SAVE_DAILY = varVal.toLowerCase().equals("true");
-		            		break;
-		            	case "REPORT_DAILY":
-		            		REPORT_DAILY = varVal.toLowerCase().equals("true");
-		            		break;
-		            	case "REPORT_INTV":
-		            		REPORT_INTV = Integer.parseInt(varVal);
-		            		break;
-		            	case "REPORT_GEN":
-		            		REPORT_GEN = Double.parseDouble(varVal);
-		            		break;
 		            	case "NUM_ROWS":
-		        			NUM_ROWS = Integer.parseInt(varVal);
+		        			//MakeArtificialTM.NUM_ROWS = Integer.parseInt(varVal);
 		            		break;
 		            	case "NUM_COLS":
-		        			NUM_COLS = Integer.parseInt(varVal);
+		            		//MakeArtificialTM.NUM_COLS = Integer.parseInt(varVal);
 		            		break;
 		            	case "UNIFORM_DISP":
-		            		UNIFORM_DISP = Double.parseDouble(varVal);
+		            		//MakeArtificialTM.UNIFORM_DISP = Double.parseDouble(varVal);
 		            		break;
-		            	case "NUM_CORES":
-		            		NUM_CORES = Integer.parseInt(varVal);
+		            	case "REPORT_TIMESTEPS_FILE":			            		
+		            		if(varVal.toLowerCase().equals("none"))
+		            			REPORT_TIMESTEPS_FILE = null;
+		            		else
+		            			REPORT_TIMESTEPS_FILE = varVal;
+		            		break;
+		            	case "TIME_THRESH":
+		            		TIME_THRESH = Integer.parseInt(varVal);
 		            		break;
 		            	default :
 		            		throw new Exception("Setting " + varName + " not recognised.");
@@ -305,22 +314,30 @@ public class Settings{
             e.printStackTrace();
             System.exit(-1);
         }
-        //////// derived parameters //////
-    	MORTALITY = MORTALITY_DAY * (GROWTH_HOURS / 24.0);
+
+		
+		calculateDerivedSettings(nodeNum);
+	}
+
+
+
+
+
+
+
+
+
+	private static void calculateDerivedSettings(int nodeNum) {
+		MORTALITY = MORTALITY_DAY * (GROWTH_HOURS / 24.0);
     	GROWTH_RATE = GROWTH_RATE_DAY * (GROWTH_HOURS / 24.0);
     	GROWTH_PER_DISP = DISP_HOURS / GROWTH_HOURS;
     	
-    	INITIAL_P = (int) (CC * 0.875);
+    	INITIAL_P = K * 0.875;
     	
     	if(TRACER_MODE) {
     		MORTALITY = 0;
     		GROWTH_RATE = 0;
     	}
-    	
-    	LOAD_STEP = OUTPUT_TOPT ? 3 :2;
-    	
-    	if(LOAD_FILE == null)
-    		LOAD_YEAR = 0; 
     	
     	//separate out file names and directories
     	String[] filepath = Settings.FILE_OUT.split("/");
@@ -338,24 +355,21 @@ public class Settings{
     	if(nodeNum == 0)
 	    	FileIO.makeSettingsFile(DIR_OUT + "/Settings for " + FILE_OUT + ".txt");
     	
-    	//set up scanning for when you don't know what the latest available year to load will be
-    	if(LOAD_YEAR_SCAN_START == 0)
-    		LOAD_YEAR_SCAN_START = LOAD_YEAR;
-    	
-    	if(REPORT_GEN > 0)
-    		REPORT_DAILY = false;
-    	
-    	if(TM_FILE.equals("uniform")) {
-    		
-    		//adjust for time intervals per generation
-    		UNIFORM_DISP = UNIFORM_DISP / (GROWTH_HOURS / (24 * 5)) ;
-    		VOLS_FILE = null;
-    		TEMP_FILE = null;
-    		Settings.NUM_BOXES = Settings.NUM_ROWS * Settings.NUM_COLS;
-
+    	if(REPORT_TIMESTEPS_FILE != null) {
+    		IntStream tsStream = FileIO.loadIntSet(REPORT_TIMESTEPS_FILE).stream().mapToInt(e -> e).sorted();
+    		SAVE_TIMESTEPS = tsStream.toArray();
     	}
+    	else
+    		SAVE_TIMESTEPS = DEFAULT_SAVE_TIMESTEPS;
     	
-    	
+    	if(LOAD_DAY_STRING != null) {
+	    	String[] loadDayBits = LOAD_DAY_STRING.split(":");
+	    	LOAD_DAY = Integer.parseInt(loadDayBits[0]);
+	    	LOAD_HOUR = (LOAD_DAY * 24);
+	    	if(loadDayBits.length > 1)
+	    		LOAD_HOUR = Integer.parseInt(loadDayBits[1]);
+    	}
+		
 	}
 
 

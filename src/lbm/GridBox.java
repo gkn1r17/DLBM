@@ -55,7 +55,9 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
  private HashSet<Integer> arrivedFrom = new HashSet<Integer>();
 
 private int oldDayYear = -1;
- 
+private int myLinSize = 1;
+
+private boolean smpl;
  
  
 
@@ -71,17 +73,16 @@ private int oldDayYear = -1;
 		public void initPop() {
 		     population = new TreeSet<T_lin>();
 		     
-				
 				if(Settings.TRACER_MODE) {						
-			    	 population.add((T_lin) Lineage.makeNew(myCC = (int) Math.round(Settings.CC * volume),begin));
+			    	 population.add((T_lin) Lineage.makeNew(myCC = (int) Math.round(Settings.K * volume),begin));
 				}
 				else {
 		     
 				     for(int i = begin; i < end; i++)
-				    	 population.add((T_lin) Lineage.makeNew(Settings.INIT_LIN_SIZE,i));
+				    	 population.add((T_lin) Lineage.makeNew(myLinSize,i));
 
 				}
-		     myCC = (int) Math.round(Settings.CC * volume);
+		     myCC = (int) Math.round(Settings.K * volume);
 		}
 
 	 
@@ -391,11 +392,6 @@ private int oldDayYear = -1;
 	}
 	
 	
-
-	public static void printSize( TreeSet<Lineage> myST) {
-		System.out.println(myST.stream().mapToInt(e -> e.size).sum());
-	}
-	
 	void clean() {
 		combineImmigrants();
 		clearEmptys();
@@ -421,19 +417,48 @@ private int oldDayYear = -1;
 	public int getNumLins() {
 		return (int) (population.stream().filter(lin -> !lin.isSunk()).count());
 	}
+	
+	public double getTotalEvenness(double logN) {
+		return -population.stream().filter(lin -> !lin.isSunk()).
+				mapToDouble(lin -> (  (lin.size / (double)size) * Math.log(  (lin.size  / (double)size    )     )) ).sum() /  logN;
+	}
+
+	public double getOriginEvenness() {
+		double logN = Math.log(size);
+		
+		HashMap<Integer, Integer> cellCounts = new HashMap<Integer, Integer>();
+		for(Lineage lin : population) {
+			
+			if(lin.getId() < Settings.SINK_OFFSET) {
+				int box = Lineage.getOrign(id, lin.getId());
+			
+				cellCounts.compute(box, (k, v) -> (v == null) ? lin.size : v + lin.size);
+			}
+		}
+		
+		return -cellCounts.values().stream().mapToDouble(val -> (   (val / (double)size) * Math.log(   (val / (double)size )  )) ).sum() /  logN;
+		
+		
+	}
 
 	public void addLoadedPop(String[] tokens) {
 		population = new TreeSet<T_lin>();
 		size = 0;
 		try {
 		
-				for(int i = 1; i < tokens.length; i+= Settings.LOAD_STEP) {
+				for(int i = 1; i < tokens.length; i+= 
+						(Settings.TEMP_FILE == null ? 2 : 3) //find lineage ID every two columns in non selective simulations 
+																	//and every three columns in selective simulations  
+						) {
+					
+					//troubleshooting = shouldn't happen
 					if(i + 1 >= tokens.length) {
-						System.out.println(id);
 						for(int j = i; j >= 0; j-- )
 							System.out.print(tokens[j] + ",");
-						System.out.println();
 					}
+					///////////////
+					
+					
 					int id = Integer.parseInt(tokens[i]);
 					
 					int num = Integer.parseInt(tokens[i + 1]);
@@ -441,17 +466,23 @@ private int oldDayYear = -1;
 					if(id < Settings.SINK_OFFSET)
 						size += num;
 					
-					if(Settings.LOAD_STEP == 3)
-						population.add((T_lin) Lineage.makeNew(num, id, Float.parseFloat(tokens[i + 2])));
-					else 
+					if(Settings.TEMP_FILE == null)
 						population.add((T_lin) Lineage.makeNew(num, id));
+					else	
+						population.add((T_lin) Lineage.makeNew(num, id, Float.parseFloat(tokens[i + 2])));
+						
+					
+					
+					
 				}
 		}catch(Exception e) {
 			e.printStackTrace();
-			System.out.println("because you can");
 		}
 		
-		myCC = (int) Math.round(Settings.CC * volume);
+		
+		
+		
+		myCC = (int) Math.round(Settings.K * volume);
 	}
 
 
@@ -541,6 +572,7 @@ private int oldDayYear = -1;
 			return population.stream().filter(lin -> !lin.isSunk()).
 					mapToInt(lin -> lin.getId());
 		}
+		
 
 		public void clearEmptys() {
 			population.removeIf(s -> s.size == 0);		
@@ -553,22 +585,48 @@ private int oldDayYear = -1;
 		}
 
 
-
+		/**Initialize range of indices for all individuals initialised in this location
+		 * 
+		 * @param bgn first index
+		 * @return
+		 */
 		public int initIDSizeTemp(int bgn) {
-			size = (int) Math.round(Settings.INITIAL_P * volume);
 			
+			//set initial population size at equilibrium
+			size = (int) Math.round(Settings.INITIAL_P * volume);
+			//number of lineages to start with
 			int numLins = (int) Math.round((double)size / (double)Settings.INIT_LIN_SIZE);
+			
+			
+			if(Settings.INIT_LIN_SIZE == Settings.INITIAL_P) { //one lineage per location scenario
+				myLinSize = size;
+				numLins = 1;
+				
+			}else //multiple lineages per location
+				myLinSize = Settings.INIT_LIN_SIZE;
+			
+			//adjust initial population size to exact multiple of number of lineages
+					//(not relevant if one individual per lineage equal to equilibrium size)
+			size = myLinSize * numLins;
 			
 			if(Settings.TRACER_MODE)
 				numLins = 1;
+
 			
+					//alternative simpler indexing (but breaks back compatibility: ) 
+					//begin = (int) (id * (1e5 * 2) );
 			begin = bgn;
 			end = begin + numLins;
 			
-			System.out.println(end);
+			if(Settings.TEMP_FILE == null) {
+				
+					return end;
+
+			}
 			
-			if(Settings.TEMP_FILE == null)
-				return end;
+			
+			
+			/////////// TEMPERATURE STUFF ////////////////////////
 			
 		     double minTemp =  (currentTemp - (Settings.TEMP_START_RANGE / 2.0)  );
 		     double maxTemp = (float) (currentTemp + (Settings.TEMP_START_RANGE/2.0)   );
@@ -586,8 +644,8 @@ private int oldDayYear = -1;
 		     for(int i = begin; i < end; i++) {
 		    	 curTemp = minTemp + (tempIntv * (i - begin) );
 		    	 SelLineage.addTemp(i, (float) curTemp);
-
 		     }
+		     //Lineage.addOrigin(end);
 		     
 		     return end;
 		}
@@ -630,7 +688,22 @@ private int oldDayYear = -1;
 	
 	
 	
-	
+		public int getTempChangesPerYear() {
+			return dailyTemps.length;
+		}
+
+
+
+		public boolean isSmpl() {
+			return smpl;
+		}
+
+
+		public void setSmpl(boolean isSmpl) {
+			smpl = isSmpl;
+		}
+		
+		
 	
 	/** PARALLELIZATION ********************************************/
 							class ExternalMovement extends Movement {
@@ -751,12 +824,16 @@ private int oldDayYear = -1;
 
 
    /**NOT CURRENTLY USED ****************************************/
-	//grab a uniform random subsample of size n
+	/**replace population with a uniform random subsample of size n
+	 * 
+	 * @param n
+	 * @param year
+	 */
 	public void getSampleset(int n, int year) {
-					int numSmpls = Math.min(n, size );
-					if(numSmpls < n)
-						System.out.println("WARNING - collecting only," + numSmpls + ",from,"  + id + ",year," + year);
+					if(size <= n)
+						return;
 		
+					int numSmpls = n; //Math.min(n, size );
 					int[] smplInds = IntStream.generate(() -> (int)Math.floor(Math.random() * size)).
 										distinct().
 										limit(numSmpls).
@@ -766,6 +843,8 @@ private int oldDayYear = -1;
 					int cumSize = 0;
 					int nextSmpl = smplInds[smplIndx];
 					int sizeFromThisLin = 0;
+					
+					size = 0;
 					
 					for(Lineage lin : population) {
 						if(smplIndx == numSmpls)
@@ -790,20 +869,26 @@ private int oldDayYear = -1;
 							continue;
 						
 						lin.size = -sizeFromThisLin; 
-
+						size += sizeFromThisLin;
 						
 					}
 					
-					clearEmptys();
 					
+					population.forEach(s -> s.size = Math.min(0, s.size));
+					clearEmptys();
 					population.forEach(s -> s.size = -s.size);
 	}
 
 
-	
-	public int getNumTemps() {
-		return dailyTemps.length;
+	public TreeSet<T_lin> getPopulation() {
+		return population;
 	}
+
+
+	
+
+
+
 
 
 }
