@@ -22,7 +22,7 @@ public class SelLineage extends Lineage{
 		super(sz, id);
 		this.t_tOpt = tempLins.get(isSunk() ? (id - Settings.SINK_OFFSET) : id);
 		
-		System.out.println(id + "," + t_tOpt);
+		//System.out.println(id + "," + t_tOpt);
 	}
 
 	protected SelLineage(int sz, int id, float t_tOpt) {
@@ -48,11 +48,13 @@ public class SelLineage extends Lineage{
 	}
 	
 	public String getDetails() {
-		return super.getDetails() + 
-				(Settings.OUTPUT_TOPT ? ("," + t_tOpt)
-									: "");
+		return super.getDetails() + "," + t_tOpt;
 		
 		
+	}
+	
+	public double[] getDetailsArr() {
+		return new double[] {getId(), size, t_tOpt};
 	}
 	
 	public void prepareForMove() {
