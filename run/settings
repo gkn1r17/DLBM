@@ -1,3 +1,6 @@
+//////////////// MAY BE OUT OF DATE - USED AS AN EXAMPLE ONLY - CHECK src/lbm/Settings.java for latest settings //////////////////// 
+/////////////////////////////////////////////
+
 //total simulation duration in years
 DURATION:10000
 //starting size of each lineage
