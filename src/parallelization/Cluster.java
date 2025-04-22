@@ -40,5 +40,4 @@ public class Cluster {
 		return cells;
 	}
 
-	
 }
