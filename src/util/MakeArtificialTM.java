@@ -1,5 +1,7 @@
 package util;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.HashMap;
 
 import cern.jet.random.engine.DRand;
@@ -10,38 +12,87 @@ import parallelization.Cluster;
 public class MakeArtificialTM {
 	public static int NUM_CORES = 40;
 	public static int NUM_ROWS = 1;
-	public static int NUM_COLS = 1;
-	public static double UNIFORM_DISP = 0.0001;
+	public static int NUM_COLS = 100;
+	public static double DISP = 0.0001;
+	public static boolean GYRE = false;
+	public static double DISP_OUT = 0.0001;
+	public static double DISP_IN = 0;
+	
+	public static double SPLIT_COL = 5;
 
 	
-	public static GridBox[] makeUniformTM(DRand rd) {
+	public static GridBox[] makeUniformTM() {
 		
 		//adjust for time intervals per generation
-		UNIFORM_DISP = UNIFORM_DISP / (Settings.GROWTH_HOURS / (24 * 5)) ;
+		DISP = DISP / (24/ Settings.DISP_HOURS) ;
+		DISP_OUT = DISP_OUT / (24/ Settings.DISP_HOURS) ;
+
 		Settings.VOL_FILE = null;
 		Settings.TEMP_FILE = null;
 		Settings.NUM_BOXES = NUM_ROWS * NUM_COLS;
-
 		
+		StringBuilder tmWriter = new StringBuilder("From,To,Weight");
 		
 		GridBox[] cells = new GridBox[Settings.NUM_BOXES];
+		
+		int splitRow = (int) ((SPLIT_COL % 1.0) * NUM_ROWS);
+		if(splitRow == 0)
+			splitRow = NUM_ROWS;
 		
 		//columns then rows
 		for(int i =0; i < Settings.NUM_BOXES; i++) {
 			int from = i;
-			int[] tos = new int[] {i + 1, i + NUM_COLS, i - 1, i - NUM_COLS};
+			int[] tos = GYRE ?
+					new int[] {i + 1} :
+					new int[] {i + 1, i + NUM_COLS, i - 1, i - NUM_COLS};
+			
+			
+			
 			if(cells[from] == null)
                 cells[from] = new GridBox(from, 1.0, new double[] {-999.0} );
 			for(int to : tos) {
+				
+				if(GYRE) {
+					if(to == Settings.NUM_BOXES)
+						to = 0;
+				}
 				if(to < Settings.NUM_BOXES && to >= 0) {
 					if(cells[to] == null)
 						cells[to] = new GridBox(to, 1.0, new double[] {-999.0} );
-					cells[from].addDest(UNIFORM_DISP, cells[to]);
+					if(GYRE &&  (to == 0 || to == Settings.NUM_BOXES / 2) && DISP_OUT != DISP) {
+						if(DISP_OUT > 0)
+							cells[from].addDest(DISP_OUT, cells[to], tmWriter);
+						if(to == Settings.NUM_BOXES / 2)
+							cells[from].addDest(DISP - DISP_OUT, cells[0], tmWriter);
+						else
+							cells[from].addDest(DISP - DISP_OUT, cells[Settings.NUM_BOXES / 2], tmWriter);
+						
+					}
+					else{
+						
+						
+						if(sameClust(from,to,splitRow))
+							cells[from].addDest(DISP, cells[to], tmWriter);
+						
+						
+					}
 					
 				}
 			}
 		}
 		
+		
+		if(SPLIT_COL != 0 ) {
+			
+			
+			
+			//top left -> top right
+			int cellA = (int) ((Math.ceil(SPLIT_COL) - 1) + (NUM_COLS * Math.floor(splitRow / 2)));
+			int cellB = cellA + 1;
+			cells[cellA].addDest(DISP_OUT, cells[cellB], tmWriter);			
+			if(DISP_IN > 0)
+				cells[cellB].addDest(DISP_IN, cells[cellA], tmWriter);
+		}
 		
 		//allocate clusters
 		int clustRows = 1;
@@ -79,11 +130,11 @@ public class MakeArtificialTM {
 		            
 		            
 		            int cellI = startY + (NUM_COLS * y) + startX + x;
-		            if(cellI < Settings.NUM_BOXES) {
-		            		clusts.putIfAbsent(clustI, new Cluster(rd.nextInt(),0));
-		            		clusts.get(clustI).addGridCell(cells[cellI]);
-		 
-		            }
+//		            if(cellI < Settings.NUM_BOXES) {
+//		            		clusts.putIfAbsent(clustI, new Cluster(rd.nextInt(),0));
+//		            		clusts.get(clustI).addGridCell(cells[cellI]);
+//		 
+//		            }
 
 				}
 			}
@@ -98,10 +149,46 @@ public class MakeArtificialTM {
 
 		}
 		
+		
+		try {
+			FileWriter outputfile = new FileWriter(Settings.TM_FILE,false);
+			outputfile.write(tmWriter.toString());
+			outputfile.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
         return cells;
 
 	}
 
-	
+	public static boolean sameClust(int cellA, int cellB, int splitRow) {
+		int colA = (cellA % NUM_COLS);
+		int colB = (cellB % NUM_COLS);
+		
+		if(Math.abs(colA - colB) > 1) // so doesn't loop around sides
+			return false;
+		
+		if(SPLIT_COL == 0) //if all one cluster
+			return true;
+		
+		int rowA = Math.floorDiv(cellA, NUM_COLS);
+		int rowB = Math.floorDiv(cellB, NUM_COLS);
+
+		//row split
+		if(colA == colB && colA <= Math.ceil(SPLIT_COL) - 1) {
+			return rowA >= splitRow == rowB >= splitRow;
+		}
+		
+		if(rowA >= splitRow && rowB >= splitRow)
+			return true;
+		
+		return(colA > (Math.ceil(SPLIT_COL) - 1) == colB > (Math.ceil(SPLIT_COL) - 1) );
+		
+		
+			
+	}
 	
 }

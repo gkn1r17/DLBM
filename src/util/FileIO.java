@@ -4,6 +4,7 @@ package util;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,7 +53,7 @@ public class FileIO {
 	 * @param tm 
 	 * @return
 	 */
-	public static GridBox[] loadTM(String filename, DRand rd, double[][] vols, double[][] temps, boolean verbose) {
+	public static GridBox[] loadTM(String filename, double[][] vols, double[][] temps, boolean verbose) {
 		
 		//double maxStay = 0;
 		
@@ -73,7 +74,7 @@ public class FileIO {
                     
                 	
                 	
-	                double prob = Double.parseDouble(tokens[2]) * Settings.DISP_SCALER;// * (Settings.DISP_HOURS / 90.0); //1.0 / Settings.NUM_BOXES;
+	                double prob = Double.parseDouble(tokens[2]) * Settings.DISP_SCALER; // * (Settings.DISP_HOURS / 24.0);
 	                
 	                if(cells[from] == null) {
 	                	cells[from] = new GridBox(from, 
@@ -89,7 +90,7 @@ public class FileIO {
 	            					temps == null ? new double[] {-999.0} : temps[dest]);
 	            			destCell = cells[dest];
 	            		}
-		                cells[from].addDest(prob, cells[dest]);
+		                cells[from].addDest(prob, cells[dest], null);
 	                }
                 }
 
@@ -107,7 +108,6 @@ public class FileIO {
 				}
             }
         
-            allocateClusters(cells, rd);
         
         
         }catch (FileNotFoundException e){
@@ -121,34 +121,12 @@ public class FileIO {
 	
 	
 	
-	private static void allocateClusters(GridBox[] cells, DRand rd) throws FileNotFoundException {
-    	Scanner clustReader = new Scanner(new File(Settings.CLUST_FILE));
-		HashMap<Integer, Cluster> clusts = new HashMap<Integer, Cluster>();
-    	
-		int i =0;
-        while (clustReader.hasNextLine()){
-        	String[] lineBits = clustReader.nextLine().trim().split(",");
-        	
-        	
-        	
-            int clustNum = getIntFromString(  lineBits[0]     );
-            clusts.putIfAbsent(clustNum, new Cluster(rd.nextInt(),getIntFromString(  lineBits[1]     )));
-            
-            clusts.get(clustNum).addGridCell(cells[i]);
-            i++;
-        }
-        
-        clustReader.close();
-
-        
-	}
-	
 
 
 
 	
-	public static void loadDay(String inFile, GridBox[] cells, int myNode) throws Exception {
-		String filename = inFile + "s[0-9]+_D" + Settings.LOAD_DAY + "_N" + myNode + "\\.csv";
+	public static void loadDay(String inFile, GridBox[] cells) throws Exception {
+		String filename = inFile + "s[0-9]+_D" + Settings.LOAD_DAY + "(hr" + (Settings.LOAD_HOUR - (Settings.LOAD_DAY * 24) ) + ")?"+  "_N[0-9]+\\.csv";
 
 			    System.out.println("loading file \""  + filename + "\"");
 				
@@ -161,27 +139,39 @@ public class FileIO {
 							      .map(File::getName)
 							      .filter(f -> pattern.matcher(f).find())
 							      .collect(Collectors.toCollection(ArrayList::new));
-						
-					filename = Settings.LOAD_DIR + "/" + files.get(0);	
-
-		        	Scanner myFileReader = new Scanner(new File(filename));
-		        	
-		        	int cellI = 0;
-		            while (myFileReader.hasNextLine()){
-		            	String[] tokens = myFileReader.nextLine().trim().split(",");
-		            	
-		            	GridBox cell = cells[Integer.parseInt(tokens[0])];
-		            	if(cell.getClust().node == myNode) {
-		            	
-		            		cell.addLoadedPop(tokens); //, linMappings);
-		            	}
-		                cellI++;
-		                
-		                if(cellI == Settings.NUM_BOXES)
-		                	break;
-		            }
-		            
-		            myFileReader.close();
+					
+				    
+				    HashSet<Integer> nodesHandled = new HashSet<Integer>();
+				    
+				    
+				    for(String f: files) {
+				    	int nodeNum = Integer.parseInt(f.split("_N")[1].split("\\.csv")[0]);
+				    	if(nodesHandled.contains(nodeNum))
+				    		throw new IOException("More than one matching file found filename = \"" + filename + "\"");
+				    	System.out.println("Loading File: \"" + filename + "\"" );
+				    	
+				    	nodesHandled.add(nodeNum);
+				    
+						filename = Settings.LOAD_DIR + "/" + f;	
+	
+			        	Scanner myFileReader = new Scanner(new File(filename));
+			        	
+			        	int cellI = 0;
+			            while (myFileReader.hasNextLine()){
+			            	String[] tokens = myFileReader.nextLine().trim().split(",");
+			            	
+			            	GridBox cell = cells[Integer.parseInt(tokens[0])];
+			            	if(cell == null)
+			            		continue;
+			            		
+			            	cell.addLoadedPop(tokens);
+			                cellI++;
+			                
+			                if(cellI == Settings.NUM_BOXES)
+			                	break;
+			            }
+			            myFileReader.close();
+				    }
 		        }
 		        catch (FileNotFoundException e){
 		            e.printStackTrace();
@@ -191,13 +181,13 @@ public class FileIO {
 	}
 
 	
-	public static void printAll(ArrayList<GridBox> cellList, String filename) {
+	public static void printAll(List<GridBox> activeCells, String filename) {
         FileWriter outputfile;
 		try {
 			outputfile = new FileWriter(filename,true);
 			
 			
-			for(GridBox cell : cellList) {
+			for(GridBox cell : activeCells) {
 				//add total
 				outputfile.write(
 						cell.id + "," + cell.writeTree() + "\n"
@@ -244,7 +234,7 @@ public class FileIO {
 		return  Arrays.asList(str2.split(",")).stream().mapToDouble(e -> Double.parseDouble(e)).toArray();
 	}
 	
-	private static int getIntFromString(String str) {
+	public static int getIntFromString(String str) {
 		str = str.trim();
 		String str2 = str.replaceAll("[^(E|,|\\-|0-9)]", ""); //get rid of special characters
 		
@@ -296,20 +286,38 @@ public class FileIO {
 			
 			outputfile.write("DURATION:" + Settings.DURATION + "\n");
 			outputfile.write("INIT_LIN_SIZE:" + Settings.INIT_LIN_SIZE + "\n");
-			outputfile.write("SEED:" + Arrays.toString(Settings.SEED) + "\n");
+			outputfile.write("SEED:" + Settings.SEED + "\n");
 			outputfile.write("TRACER_MODE:" + Settings.TRACER_MODE + "\n");
-			outputfile.write("P_0:" + Settings.P_0 + "\n");
+			outputfile.write("P_0:" + Settings.INITIAL_P + "\n");
 
 			
 			/** TRANSPORT MATRIX */
 			outputfile.write("NUM_BOXES:" + Settings.NUM_BOXES + "\n");		
-			outputfile.write("TM_FILE:" + Settings.TM_FILE + "\n");		
+			outputfile.write("TM_FILE:" + Settings.TM_FILE + "\n");	
+			outputfile.write("BUILD_TM:" + Settings.BUILD_TM + "\n");	
+			if(Settings.BUILD_TM) {
+				outputfile.write("BUILD_TM_NUM_ROWS:" + MakeArtificialTM.NUM_ROWS + "\n");	
+				outputfile.write("BUILD_TM_NUM_COLS:" + MakeArtificialTM.NUM_COLS + "\n");
+				outputfile.write("BUILD_TM_DISP:" + MakeArtificialTM.DISP + "\n");
+				outputfile.write("BUILD_TM_DISP_OUT:" + MakeArtificialTM.DISP_OUT + "\n");
+				outputfile.write("BUILD_TM_DISP_IN:" + MakeArtificialTM.DISP_IN + "\n");
+				outputfile.write("BUILD_TM_SPLIT_COL:" + MakeArtificialTM.SPLIT_COL + "\n");
+
+			}
+
+			
+			
+			
+			
+			
 
 
 			/** GROWTH */			
 			outputfile.write("MORTALITY_DAY:" + Settings.MORTALITY_DAY + "\n");
 			outputfile.write("GROWTH_RATE_DAY:" + Settings.GROWTH_RATE_DAY + "\n");
-			outputfile.write("GROWTH_HOURS:" + Settings.GROWTH_HOURS + "\n");		
+			outputfile.write("GROWTH_HOURS:" + Settings.GROWTH_HOURS + "\n");
+			outputfile.write("TOP_DOWN:" + Settings.TOP_DOWN + "\n");
+
 			
 			/** DISPERSAL */
 			outputfile.write("DISP_HOURS:" + Settings.DISP_HOURS + "\n");
@@ -340,6 +348,25 @@ public class FileIO {
 			e.printStackTrace();
 		}				
 	}
+
+
+
+	public static int loadSeed() {
+		String hourDayString = "" + Settings.LOAD_DAY + "hr0"; 
+	    Scanner seedFile;
+		try {
+			seedFile = new Scanner(new File(Settings.DIR_OUT + "/seeds/Settings.FILE_OUT_seed_D" + hourDayString));
+			int seed = Integer.parseInt(seedFile.nextLine());
+			seedFile.close();
+			return seed;
+
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+		return -1;
+	}
+
+
 
 
 
