@@ -11,29 +11,41 @@ import java.util.stream.IntStream;
 import lbm.Settings;
 
 public class SelLineage extends Lineage{
-	private double t_growthRate = -1;
-	private final float t_tOpt;
 	
+	
+	/**mapes every lineage id to it's t_opt*/
 	private static TreeMap<Integer,Float> tempLins = new TreeMap<Integer,Float>();
-
 	
+	
+	/**thermal gamma 
+	 * -1 if needs recalculating (due to new lineage, dispersed or temp changed with annual cycle) */
+	private double t_growthRate = -1;
+	/**thermal optima*/
+	private final float t_opt;
+	
+
+	/**
+	 * 
+	 * @param sz size
+	 * @param id
+	 */
 	protected SelLineage(int sz, int id) {
 		
 		super(sz, id);
-		this.t_tOpt = tempLins.get(isSunk() ? (id - Settings.SINK_OFFSET) : id);
+		this.t_opt = tempLins.get(isSunk() ? (id - Settings.SINK_OFFSET) : id);
 		
 		//System.out.println(id + "," + t_tOpt);
 	}
 
 	protected SelLineage(int sz, int id, float t_tOpt) {
 		super(sz, id);
-		this.t_tOpt = t_tOpt;
+		this.t_opt = t_tOpt;
 	}
 	
 	@Override
 	public double getSelectiveGrowth(double tenv, boolean tempChanged) {
 		if(tempChanged || t_growthRate == -1)
-			t_growthRate = tempFunc(t_tOpt, tenv, Settings.W);
+			t_growthRate = tempFunc(t_opt, tenv, Settings.W);
 		return t_growthRate;
 		
 		//return tempFunc(t_tOpt, tenv, Settings.W);
@@ -44,17 +56,17 @@ public class SelLineage extends Lineage{
 	}
 	
 	public Float getTopt() {
-		return t_tOpt;
+		return t_opt;
 	}
 	
 	public String getDetails() {
-		return super.getDetails() + "," + t_tOpt;
+		return super.getDetails() + "," + t_opt;
 		
 		
 	}
 	
 	public double[] getDetailsArr() {
-		return new double[] {getId(), size, t_tOpt};
+		return new double[] {getId(), size, t_opt};
 	}
 	
 	public void prepareForMove() {
@@ -63,7 +75,7 @@ public class SelLineage extends Lineage{
 	
 	@Override
 	public SelLineage copy(int num) {
-		return new SelLineage(num, id,  t_tOpt);
+		return new SelLineage(num, id,  t_opt);
 	}
 
 	public static void addTemp(int id, float temp) {

@@ -11,6 +11,7 @@ import cern.jet.random.Poisson;
 import cern.jet.random.engine.DRand;
 import lbm.GridBox;
 import lbm.Settings;
+import parallelization.RunnerParallelization;
 import util.ProbFunctions;
 
 public abstract class Lineage implements Comparable<Lineage>{
@@ -18,7 +19,7 @@ public abstract class Lineage implements Comparable<Lineage>{
 	public int size = 0;
 	protected final int id;
 	
-	private static ArrayList<Integer> originLins = new ArrayList<Integer>();
+	//private static ArrayList<Integer> originLins = new ArrayList<Integer>();
 
 	
 	public Lineage(int sz, int id) {
@@ -99,32 +100,35 @@ public abstract class Lineage implements Comparable<Lineage>{
 		return id;
 	}
 
-	public void growDie(boolean willGrow, double addee, double temp, boolean tempChanged, boolean dispersing, GridBox gridCell, Poisson pn, Binomial bn, DRand rd) {
-		
-		// as (k * (1 + n)) / (1 - 1) < k surely we should applying births and deaths together? (i.e. option 2)
-		// I haven't been doing that because I've been using poisson for births and binomial for deaths, poisson because it's not restricted to <= k and so reflects chance of exponential births (i.e. children birth more children in time period)
-					// except because of this lack of restriction I decided to give every individual - including new individuals a chance to die otherwise there's a bias towards population size increasing
-		
-		//OPTION 1 = default
-		
-		/*
-		 * if(willGrow) { int add = pn.nextInt(addee * size * getSelectiveGrowth(temp,
-		 * tempChanged)); size += add; gridCell.size += add; } int dieNum =
-		 * ProbFunctions.getBinomial(size, Settings.MORTALITY, bn, rd); size -= dieNum;
-		 * gridCell.size -= dieNum;
-		 */		
-		
-		
-		//OPTION 2 = Mortality and births together 
-		
+	/**
+	 * 
+	 * @param willGrow
+	 * @param growth
+	 * @param mortality
+	 * @param temp
+	 * @param tempChanged
+	 * @param gridCell
+	 * @param pn
+	 * @param bn
+	 * @param rd
+	 * @return
+	 * @throws Exception
+	 */
+	public int growDie(boolean willGrow, double growth, double mortality, double temp, boolean tempChanged, GridBox gridCell, Poisson pn, Binomial bn, DRand rd) throws Exception {
 		int add = willGrow ?
-				ProbFunctions.getBinomial(size, addee  * getSelectiveGrowth(temp, tempChanged), bn, rd) :
+				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged), bn, rd) :
 					0;
 
-		int die = ProbFunctions.getBinomial(size, Settings.MORTALITY, bn, rd);
+		int die = ProbFunctions.getBinomial(size, mortality, bn, rd);
 		int totalAdd = Math.max(-size, add - die);
 		size += totalAdd;
-		gridCell.size += totalAdd;	
+		if(size < 0)
+			throw new Exception("error in Lineage growth: size cannot be < 0. size = " + size + " id = " + id);
+		
+		if(RunnerParallelization.debugSerial)
+			System.out.println(id + "," + add + "," + die);
+		
+		return totalAdd;	
 	}
 
 	public Lineage makeSunk(int sinkNum) {
@@ -134,35 +138,35 @@ public abstract class Lineage implements Comparable<Lineage>{
 			return makeNew(sinkNum, id + Settings.SINK_OFFSET);
 	}
 
-	public static void addOrigin(int id) {
-		originLins.add(id);
-		
-	}
-
-	public static int getOrign(int currentID, int i) {
-		
-		ListIterator<Integer> origIter1 = originLins.listIterator(currentID);
-		ListIterator<Integer> origIter2 = originLins.listIterator(currentID);
-
-		boolean found = false;
-		int ind = currentID - 1;
-		while(!found) {
-			int next = origIter1.next();
-			ind ++;
-			if(next > i) {
-				while(origIter2.hasPrevious()) {
-					int previous = origIter2.previous();
-					if(previous < i)
-						return ind;
-					ind --;
-				}
-				return ind;
-			}
-		}
-		
-		
-		return ind;
-	}
+//	public static void addOrigin(int id) {
+//		originLins.add(id);
+//		
+//	}
+//
+//	public static int getOrign(int currentID, int i) {
+//		
+//		ListIterator<Integer> origIter1 = originLins.listIterator(currentID);
+//		ListIterator<Integer> origIter2 = originLins.listIterator(currentID);
+//
+//		boolean found = false;
+//		int ind = currentID - 1;
+//		while(!found) {
+//			int next = origIter1.next();
+//			ind ++;
+//			if(next > i) {
+//				while(origIter2.hasPrevious()) {
+//					int previous = origIter2.previous();
+//					if(previous < i)
+//						return ind;
+//					ind --;
+//				}
+//				return ind;
+//			}
+//		}
+//		
+//		
+//		return ind;
+//	}
 
 
 	
