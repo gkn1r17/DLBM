@@ -101,8 +101,8 @@ public class Output {
 			reportI ++;
 			
 			//reportNext = when next to report
-			return ((saveI < Settings.SAVE_TIMESTEPS.length)   ?
-								Settings.SAVE_TIMESTEPS[saveI] :
+			return ((reportI < Settings.REPORT_TIMESTEPS.length)   ?
+								Settings.REPORT_TIMESTEPS[reportI] :
 								Integer.MAX_VALUE
 					);	
 		}

@@ -247,12 +247,12 @@ public class Runner {
 							//check if reporting interval and if so report to screen/log
 							if(day == reportNext) {
 								    int globalDiversity = RunnerParallelization.calcGlobalDiversity(activeCells);
-									Output.report(day, activeCells, 0);
+								    reportNext = Output.report(day, activeCells, 0);
 							        if(Settings.STOP_AT_1 && globalDiversity == 1)
 							        	break;
 							}
-							
-							
+//							
+//							
 							//checkpoint before getting kicked off cluster
 							if ((System.currentTimeMillis() - startTime) / 1000.0 / 3600.0 > (Settings.EXPERIMENT_HOURS * 0.99))
 								Output.checkPoint(day, hourOfDay, activeCells);
