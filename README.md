@@ -4,13 +4,16 @@
 ************** Dispersed Lineage Based Model ****************
 Geoff Neumann, 2024
 
+################################ QUICK START 
+
 To run on distributed cluster (assuming SLURM environment):
 1) Move run folder onto server
-2) Modify "settings" file as required or copy and create new settings file.
-3) Navigate to run folder on server
-4) Submit jobs with below command:
+2) Create settings (.ini) file using testSettings/testNeutral.ini (neutral simulation)
+      or testSettings/testSelective.ini (selective simulation) as a guide 
+4) Navigate to run folder on server
+5) Submit jobs with below command (adjust for number of nodes and path to settings file as required)
    
-      sbatch runLBM.slurm LBM.jar NUMNODES 2 SETTINGS settings
+      sbatch runLBM.slurm LBM.jar NUMNODES 7 SETTINGS testSettings/testSelective.ini
 
 Output:
 In output folder:
