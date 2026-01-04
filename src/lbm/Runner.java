@@ -8,10 +8,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -38,16 +40,27 @@ import util.MakeArtificialTM;
 
 public class Runner {
 	
-	/**all locations*/
-	private static int tempTidx;
-	private static int tempChangesPerYear;
-	private static long hour;
-	private static long day;
-
-	private static final ArrayList<GridBox> activeCells = new ArrayList<GridBox>();
-
 	
-	
+	public static RunState runState;;
+
+
+	public static class RunState {
+		public final ArrayList<GridBox> activeCells;
+		public final Settings settings;
+		public long hour;
+		public long day;
+		
+		public RunState(ArrayList<GridBox> activeCells, Settings settings) {
+			this.activeCells = activeCells;
+			this.settings = settings;
+		}
+		
+	}
+
+
+
+
+
 	
 	
 	/**
@@ -55,6 +68,8 @@ public class Runner {
 	 * @param args parameters
 	 */
 	public static void main(String[] args) {
+		
+		
 		
 		//separate number of nodes from other program arguments (i.e. settings)
 		if(args.length > 0 && args[0].toLowerCase().equals("numnodes")) {
@@ -64,64 +79,64 @@ public class Runner {
 			args = RunnerParallelization.setupParallel(numNodes, args);
 		}
 		else {
-			System.err.println("Number of nodes not specified");
+			System.err.println("Number of nodes not specified. Exiting");
 			System.exit(-1);
 		}
 		
 		//setup
 		try {
-			setup(args);
+			runState = setup(args);
+			
+			//run
+			runAll(args, runState);
+
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();			
 			System.exit(-1);
 		}
 		
-		//run
-		runAll(args);
 
 	}
 	
 	/** Setup this runner (will only be called once for one "Runner" object if running distributed or only one node, 
 	 * 					will only be called for separate runners if testing multiple runners on this computer)
 	 * @param args 
+	 * @return 
 	 * 
 	 * @throws Exception
 	 */
-	private static void setup(String[] args) throws Exception {
+	private static RunState setup(String[] args) throws Exception {
 		
-		//setup settings and potentially load saved run
-		Settings.loadSettings(args, RunnerParallelization.amIController(), true);
+		ArrayList<GridBox> activeCells = null;
 		
-		//initialise test at right time (default = 0)
-		hour = Settings.LOAD_HOUR;
-		day = (int) Math.floor(hour  / 24.0);
+		//setup settings
+		Settings settings = new Settings(args, RunnerParallelization.amIController(), true);
 		
-			
 		//Setup Transport matrix and associated locations
-		ArrayList<GridBox> allCells = setupTM();
+		ArrayList<GridBox> allCells = setupTM(settings);
 
-		//initialise selective if needed
-		tempChangesPerYear = allCells.get(0).getTempChangesPerYear();
 		
 		//setup random engines and seeds
-		DRand rd = setupRandom();
+		DRand rd = setupRandom(settings);
 		
 
 		//initialise parallelization stuff and 
 					//return array of cells with 
 					//cells not handled on this server set to null to save memory
-		GridBox[] activeCellsArr = RunnerParallelization.setupNodes(allCells, rd);
+		GridBox[] activeCellsArr = RunnerParallelization.setupNodes(allCells, rd, settings);
 
 		//Initialise lineages either...	
-		if(Settings.LOAD_FILE != null || Settings.LOAD_DAY > 0)         //...from end of previous run
-			if(Settings.LOAD_DAY > 0 && Settings.LOAD_FILE != null)
-				FileIO.loadDay(Settings.LOAD_FILE, activeCellsArr);
+		if(settings.FILE_LOAD != null || settings.LOAD_HOUR > 0)         //...from end of previous run
+			if(settings.LOAD_HOUR > 0 && settings.FILE_LOAD != null) {
+				activeCells = FileIO.loadDay(settings.FILE_LOAD, activeCellsArr, settings);
+				Arrays.asList(activeCellsArr);
+			}
 			else {
 				throw new Exception("To load a previous run "
-						+ "set both LOAD_DAY and LOAD_FILE ");
+						+ "set both LOAD_DAY and FILE_LOAD ");
 			}
 		else {                                                          //...or from initialisation state
+			activeCells = new ArrayList<GridBox>();
 			for(GridBox cell : activeCellsArr) {
 				if(cell != null) {
 					cell.initPop();
@@ -130,31 +145,34 @@ public class Runner {
 			}
 		}
 		
-
+		return new RunState (activeCells, settings);
 	}
 
 
-	private static DRand setupRandom() throws IOException {
+	private static DRand setupRandom(Settings settings) throws IOException {
 		//Setup seed	
-		int seed = (Settings.SEED == Settings.LOAD_SEED) ? //load seed from saved for run of same name
-				        FileIO.loadSeed()
+		int seed = (settings.SEED == settings.LOAD_SEED) ? //load seed from saved for run of same name
+				        FileIO.loadSeed(settings)
 						:
 						(		
-						Settings.SEED == -1 ?              //initialise randomly from current time, ensuring consistent across distributed nodes
+						settings.SEED == -1 ?              //initialise randomly from current time, ensuring consistent across distributed nodes
 								RunnerParallelization.synchSeeds(new Random().nextInt()) :  
-						Settings.SEED );                   //initialise to specified seed
+						settings.SEED );                   //initialise to specified seed
 	
 		System.out.println("Starting " + 0 + " with seed = " + seed);
 		DRand rd = new DRand(seed);
 		
 		//save
-		Files.createDirectories(Paths.get(Settings.DIR_OUT + "/seeds"));
+		Files.createDirectories(Paths.get(settings.FILE_OUT + "/seeds"));
 		
-		//TODO - can't yet load/save part way through day I believe
-		String hourDayString = "" + Settings.LOAD_DAY + "hr0"; 
+		//all output is currently not in hours but [day]h[hourOfDay] format
+			//for back compatibility as formally only counted days
+		long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+		int hourOfDay = (int) (settings.LOAD_HOUR - (day * 24));
+		String hourDayString = "" + day + "h" + hourOfDay; 
 	
 		
-		FileWriter seedFile = new FileWriter(Settings.DIR_OUT + "/seeds/Settings.FILE_OUT_seed_D" + hourDayString, false);
+		FileWriter seedFile = new FileWriter(settings.FILE_OUT + "/seeds/settings.FILE_OUT_seed_D" + hourDayString, false);
 		seedFile.append("" + seed);
 		seedFile.close();
 		
@@ -162,24 +180,23 @@ public class Runner {
 	}
 
 
-	private static ArrayList<GridBox> setupTM() throws Exception {
+	private static ArrayList<GridBox> setupTM(Settings settings) throws Exception {
 		GridBox[] cells;
-		if(Settings.BUILD_TM)
-				cells = MakeArtificialTM.makeUniformTM(); 
+		if(settings.BUILD_TM)
+				cells = MakeArtificialTM.makeUniformTM(settings); 
 		else {
 		
-				cells = FileIO.loadTM(Settings.TM_FILE,  //TM configuration
-							FileIO.loadDoubleFile(Settings.VOL_FILE), //Volumes of each location
-							FileIO.loadDoubleFile(Settings.TEMP_FILE), //Temp of each location
-							true
+				cells = FileIO.loadTM(settings.TM_FILE,  //TM configuration
+							FileIO.loadDoubleFile(settings.VOL_FILE, settings), //Volumes of each location
+							FileIO.loadDoubleFile(settings.TEMP_FILE, settings), //Temp of each location
+							true,
+							settings
 						);
 		}
 		//		
 		
 		
 		ArrayList<GridBox> cellList = new ArrayList<GridBox>(Arrays.asList(cells));
-		GridBox.maxVol = cellList.stream()
-				.mapToDouble(c -> c.getVol()).max().getAsDouble();
 		
 
 		//setup locations
@@ -198,26 +215,43 @@ public class Runner {
 	/**Start all Runners (distributed nodes)
 	 * 
 	 * @param args
+	 * @param runS 
 	 */
-	private static void runAll(String[] args) {
-		
+	private static void runAll(String[] args, RunState runS) {
+		long hour = 0;
+		long day = 0;
+		Settings settings = runS.settings;
+
 		
 		try {
+			
+			
+			ArrayList<GridBox> activeCells = runS.activeCells;
 			
 					//////////////// OUTPUT /////////////////
 					//saves/reports data at t=0 (if specified in SAVE_TIMESTEPS_FILE)
 					//prints starting time
 					//gets when next to save/report
-					int[] saveReport = Output.startOutput(day, activeCells, RunnerParallelization.calcGlobalDiversity(activeCells));
-					int saveNext = saveReport[0];
-					int reportNext = saveReport[1];
+					long[] saveReport = Output.startOutput(activeCells, 
+														RunnerParallelization.calcGlobalDiversity(activeCells, settings),
+														settings);
+					long saveNext = saveReport[0];
+					long reportNext = saveReport[1];
 					long startTime = RunnerParallelization.getClusterStartTime();
-					System.out.println("Starting experiment at " + startTime);
+					SimpleDateFormat sdf = new SimpleDateFormat("dd/mm/yyyy HH:mm");    
+					Date startDate = new Date(startTime);
+					System.out.println("Starting experiment at " + sdf.format(startDate) );
 					long lastTime = startTime;
 					///////////////////////////////////////////
-			
 
-			for(hour += Settings.DISP_HOURS  ;  day < Settings.DURATION  ; hour += Settings.DISP_HOURS) {
+			//initialise selective if needed
+			int tempChangesPerYear = 0;
+			int tempTidx = 0;
+			if(settings.TEMP_FILE != null)
+				tempChangesPerYear = activeCells.get(0).getTempChangesPerYear();
+			
+			int duration = settings.DURATION_DAY * 24;
+			for(hour = settings.LOAD_HOUR;  hour < duration  ; hour += settings.DISP_HOURS) {
 				
 				//get current day/hour/year
 				day = (int) Math.floorDiv(hour, 24);
@@ -225,11 +259,15 @@ public class Runner {
 				int hourOfDay = (int) (day == 0 ? hour : (int)(hour % (day * 24)));
 				
 				
+				runS.day = day;
+				runS.hour = hour;
+				
 				//find out which temperature currently on
-				tempTidx = (int) Math.floor(dayOfYear / (365.0 / tempChangesPerYear)  );
-				if(tempTidx == tempChangesPerYear)
-					tempTidx --;
-
+				if(settings.TEMP_FILE != null) {
+					tempTidx = (int) Math.floor(dayOfYear / (365.0 / tempChangesPerYear)  );
+					if(tempTidx == tempChangesPerYear)
+						tempTidx --;
+				}
 				
 				
 				//RUN MAIN LOOP
@@ -242,24 +280,24 @@ public class Runner {
 							
 							
 							//check if saving interval and if so save to file
-							if(day == saveNext)
-									saveNext = Output.save(day, hourOfDay, activeCells);
+							if(hour == saveNext)
+									saveNext = Output.save(hour, activeCells, settings);
 							//check if reporting interval and if so report to screen/log
-							if(day == reportNext) {
-								    int globalDiversity = RunnerParallelization.calcGlobalDiversity(activeCells);
-								    reportNext = Output.report(day, activeCells, 0);
-							        if(Settings.STOP_AT_1 && globalDiversity == 1)
+							if(hour == reportNext) {
+								    int globalDiversity = RunnerParallelization.calcGlobalDiversity(activeCells, settings);
+								    reportNext = Output.report(hour, activeCells, 0, settings);
+							        if(settings.STOP_AT_1 && globalDiversity == 1)
 							        	break;
 							}
 //							
 //							
 							//checkpoint before getting kicked off cluster
-							if ((System.currentTimeMillis() - startTime) / 1000.0 / 3600.0 > (Settings.EXPERIMENT_HOURS * 0.99))
-								Output.checkPoint(day, hourOfDay, activeCells);
+							if ((System.currentTimeMillis() - startTime) / 1000.0 / 3600.0 > (settings.CHECKPOINT_HOURS * 0.99))
+								Output.checkPoint(hour, activeCells, settings);
 			
 							//just to show hasn't frozen
 							double secondsTaken = (System.currentTimeMillis() - lastTime) / 1000.0;
-							if (secondsTaken > Settings.TIME_THRESH && RunnerParallelization.amIController()) { //report if taken too long
+							if (secondsTaken > settings.TIME_THRESH && RunnerParallelization.amIController()) { //report if taken too long
 								System.out.println("(I'm still alive) day: " + day + "hr" + hourOfDay + ", year " + Math.floorDiv(day, 365));
 								lastTime = System.currentTimeMillis();
 							}
@@ -267,6 +305,11 @@ public class Runner {
 							////////////////////////////////////////////////////////////
 
 			}
+			
+			
+			runS.day = (int) Math.floorDiv(hour, 24);
+			runS.hour = hour;
+
 			
 			
 		}catch(Exception e){
@@ -279,7 +322,7 @@ public class Runner {
 		}
 		
 		try {
-			Output.logToCSV();
+			Output.logToCSV(settings.FILE_OUT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -288,13 +331,7 @@ public class Runner {
 		
 	}
 
-	public static List<GridBox> getAllLocs() {
-		return activeCells;
-	}
 
-	public static long getDay() {
-		return day;
-	}
 	
 
 

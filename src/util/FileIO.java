@@ -17,12 +17,16 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.ini4j.Ini;
+import org.ini4j.Profile.Section;
 
 import cern.jet.random.Binomial;
 import cern.jet.random.engine.DRand;
@@ -52,12 +56,13 @@ public class FileIO {
 	 * @param settings 
 	 * @param tm 
 	 * @return
+	 * @throws FileNotFoundException 
 	 */
-	public static GridBox[] loadTM(String filename, double[][] vols, double[][] temps, boolean verbose) {
+	public static GridBox[] loadTM(String filename, double[][] vols, double[][] temps, boolean verbose, Settings settings) throws FileNotFoundException {
 		
 		//double maxStay = 0;
 		
-		GridBox[] cells = new GridBox[Settings.NUM_BOXES];
+		GridBox[] cells = new GridBox[settings.NUM_BOXES];
         try{
 
         	Scanner myFileReader = new Scanner(new File(filename));
@@ -70,16 +75,17 @@ public class FileIO {
                 int dest = (int) Double.parseDouble(tokens[1]) - 1;
                 
                 
-                if(from < Settings.NUM_BOXES && dest < Settings.NUM_BOXES) {
+                if(from < settings.NUM_BOXES && dest < settings.NUM_BOXES) {
                     
                 	
                 	
-	                double prob = Double.parseDouble(tokens[2]) * Settings.DISP_SCALER; // * (Settings.DISP_HOURS / 24.0);
+	                double prob = Double.parseDouble(tokens[2]) * settings.DISP_SCALER; // * (settings.DISP_HOURS / 24.0);
 	                
 	                if(cells[from] == null) {
 	                	cells[from] = new GridBox(from, 
 	                			vols == null ? 1.0 : vols[from][0],
-	                			temps == null ? new double[] {-999.0} : temps[from]);
+	                			temps == null ? new double[] {-999.0} : temps[from],
+	                					settings);
 	                }
 	
 	                if(prob != 0 && from != dest) {
@@ -87,7 +93,8 @@ public class FileIO {
 	            		if(destCell == null) { 
 	            			cells[dest] = new GridBox(dest, 
 	            					vols == null ? 1 : vols[dest][0], 
-	            					temps == null ? new double[] {-999.0} : temps[dest]);
+	            					temps == null ? new double[] {-999.0} : temps[dest],
+	            							settings);
 	            			destCell = cells[dest];
 	            		}
 		                cells[from].addDest(prob, cells[dest], null);
@@ -100,7 +107,7 @@ public class FileIO {
             
             myFileReader.close();
             
-            for(int i =0 ; i < Settings.NUM_BOXES; i++) {
+            for(int i =0 ; i < settings.NUM_BOXES; i++) {
             	try {
 					cells[i].sortMovers(cells);
 				} catch (Exception e) {
@@ -111,8 +118,7 @@ public class FileIO {
         
         
         }catch (FileNotFoundException e){
-            e.printStackTrace();
-            System.exit(-1);
+            throw e;
         }
         //System.out.println((1 - minStay) * 100);
         return cells;
@@ -125,8 +131,13 @@ public class FileIO {
 
 
 	
-	public static void loadDay(String inFile, GridBox[] cells) throws Exception {
-		String filename = inFile + "s[0-9]+_D" + Settings.LOAD_DAY + "(hr" + (Settings.LOAD_HOUR - (Settings.LOAD_DAY * 24) ) + ")?"+  "_N[0-9]+\\.csv";
+	public static ArrayList<GridBox> loadDay(String inFile, GridBox[] cells, Settings settings) throws Exception {
+		String filename = new File(inFile).getName();
+		String loadDir = inFile.replaceAll(filename, "");
+		long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+		long hourOfDay = settings.LOAD_HOUR - (day * 24);
+		ArrayList<GridBox> activeCells = new ArrayList<GridBox>();
+		filename = filename + "s[0-9]+_D" + day + "(hr" + hourOfDay + ")?"+  "_N[0-9]+\\.csv";
 
 			    System.out.println("loading file \""  + filename + "\"");
 				
@@ -134,7 +145,7 @@ public class FileIO {
 		  
 		        	
 				    Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
-				    ArrayList<String> files = Stream.of(new File(Settings.LOAD_DIR).listFiles())
+				    ArrayList<String> files = Stream.of(new File(loadDir).listFiles())
 							      .filter(file -> !file.isDirectory())
 							      .map(File::getName)
 							      .filter(f -> pattern.matcher(f).find())
@@ -152,7 +163,7 @@ public class FileIO {
 				    	
 				    	nodesHandled.add(nodeNum);
 				    
-						filename = Settings.LOAD_DIR + "/" + f;	
+						filename = loadDir + "/" + f;	
 	
 			        	Scanner myFileReader = new Scanner(new File(filename));
 			        	
@@ -166,17 +177,19 @@ public class FileIO {
 			            		
 			            	cell.addLoadedPop(tokens);
 			                cellI++;
+			                activeCells.add(cell);
 			                
-			                if(cellI == Settings.NUM_BOXES)
+			                if(cellI == settings.NUM_BOXES)
 			                	break;
 			            }
 			            myFileReader.close();
 				    }
 		        }
 		        catch (FileNotFoundException e){
-		            e.printStackTrace();
-		            System.exit(-1);
+		        	System.err.println("Fatal Exception: LOAD_FILE \"" + filename + "\" not found.");
+		        	throw e;
 		        }
+		        return activeCells;
         
 	}
 
@@ -205,11 +218,11 @@ public class FileIO {
 	
 
 
-	public static double[][] loadDoubleFile(String filename) throws Exception {
+	public static double[][] loadDoubleFile(String filename, Settings settings) throws Exception {
 		if(filename == null) {
 			return null;
 		}
-		double[][] vols = new double[Settings.NUM_BOXES][];
+		double[][] vols = new double[settings.NUM_BOXES][];
         Scanner myFileReader = new Scanner(new File(filename));
         int cellI = 0;
         while(myFileReader.hasNext()) {
@@ -217,9 +230,9 @@ public class FileIO {
         	vols[cellI] = getDoubleArrayFromString(myFileReader.nextLine());
 		    cellI++;
         }
-		if(cellI < Settings.NUM_BOXES)
-		    throw new Exception("Number of lines in file " + filename + " < number of boxes");
         myFileReader.close();
+		if(cellI < settings.NUM_BOXES)
+		    throw new Exception("Number of lines in file " + filename + " < number of boxes");
         return vols;
 	}
 
@@ -229,133 +242,55 @@ public class FileIO {
 		
 		//warn in output if special characters replaced
 		if(!str.equals(str2))
-			System.out.println("PLEASE CHECK: replacing " + str + " with " + str2);
+			System.err.println("WARNING: possible character error in input file. Replacing " + str + " with " + str2);
 
 		return  Arrays.asList(str2.split(",")).stream().mapToDouble(e -> Double.parseDouble(e)).toArray();
 	}
 	
-	public static int getIntFromString(String str) {
+	public static long getLongFromString(String str) {
 		str = str.trim();
 		String str2 = str.replaceAll("[^(E|,|\\-|0-9)]", ""); //get rid of special characters
 		
 		//warn in output if special characters replaced
 		if(!str.equals(str2))
-			System.out.println("PLEASE CHECK: replacing " + str + " with " + str2);
+			System.err.println("WARNING: possible character encoding error in input file. "
+					+ "Check that " + str + " = " + str2);
 
-		return Integer.parseInt(str2);
+		return Long.parseLong(str2);
 	}
 
-	public static HashSet<Integer> loadIntSet(String filename) {
+	public static HashSet<Long> loadLongSet(String filename) {
 		if(filename == null) {
 			return null;
 		}
 		
-		HashSet<Integer> intSet = new HashSet<Integer>();
+		HashSet<Long> longSet = new HashSet<Long>();
 
 		
 		Scanner myFileReader;
 		try {
 			myFileReader = new Scanner(new File(filename));
 	        while(myFileReader.hasNext())
-	        	intSet.add (getIntFromString(myFileReader.nextLine()));
+	        	longSet.add (getLongFromString(myFileReader.nextLine()));
 	        myFileReader.close();
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
-        return intSet;	
+        return longSet;	
      }
 
-	
-	/**record settings in file */
-	public static void makeSettingsFile(String filename) {
+
+
+	public static int loadSeed(Settings settings) {
+		long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+		long hourOfDay = settings.LOAD_HOUR - (day * 24);
 		
-		//create directory
-		try {
-			Files.createDirectories(Paths.get(Settings.DIR_OUT));
-		} catch (IOException e) {
-			e.printStackTrace();
-		}		
-
-		
-		//save
-        FileWriter outputfile;
-		try {
-			outputfile = new FileWriter(filename,false);
-			
-			outputfile.write("DURATION:" + Settings.DURATION + "\n");
-			outputfile.write("INIT_LIN_SIZE:" + Settings.INIT_LIN_SIZE + "\n");
-			outputfile.write("SEED:" + Settings.SEED + "\n");
-			outputfile.write("TRACER_MODE:" + Settings.TRACER_MODE + "\n");
-			outputfile.write("P_0:" + Settings.INITIAL_P + "\n");
-
-			
-			/** TRANSPORT MATRIX */
-			outputfile.write("NUM_BOXES:" + Settings.NUM_BOXES + "\n");		
-			outputfile.write("TM_FILE:" + Settings.TM_FILE + "\n");	
-			outputfile.write("BUILD_TM:" + Settings.BUILD_TM + "\n");	
-			if(Settings.BUILD_TM) {
-				outputfile.write("BUILD_TM_NUM_ROWS:" + MakeArtificialTM.NUM_ROWS + "\n");	
-				outputfile.write("BUILD_TM_NUM_COLS:" + MakeArtificialTM.NUM_COLS + "\n");
-				outputfile.write("BUILD_TM_DISP:" + MakeArtificialTM.DISP + "\n");
-				outputfile.write("BUILD_TM_DISP_OUT:" + MakeArtificialTM.DISP_OUT + "\n");
-				outputfile.write("BUILD_TM_DISP_IN:" + MakeArtificialTM.DISP_IN + "\n");
-				outputfile.write("BUILD_TM_SPLIT_COL:" + MakeArtificialTM.SPLIT_COL + "\n");
-
-			}
-
-			
-			
-			
-			
-			
-
-
-			/** GROWTH */			
-			outputfile.write("MORTALITY_DAY:" + Settings.MORTALITY_DAY + "\n");
-			outputfile.write("GROWTH_RATE_DAY:" + Settings.GROWTH_RATE_DAY + "\n");
-			outputfile.write("GROWTH_HOURS:" + Settings.GROWTH_HOURS + "\n");
-			outputfile.write("TOP_DOWN:" + Settings.TOP_DOWN + "\n");
-
-			
-			/** DISPERSAL */
-			outputfile.write("DISP_HOURS:" + Settings.DISP_HOURS + "\n");
-			outputfile.write("K:" + Settings.K + "\n");
-			outputfile.write("VOLS_FILE:" + Settings.VOL_FILE + "\n");
-			outputfile.write("DISP_SCALER:" + Settings.DISP_SCALER + "\n");		
-		
-					
-			/** SELECTION */
-			if(Settings.TEMP_FILE != null) {
-				outputfile.write("TEMP_FILE:" + Settings.TEMP_FILE + "\n");
-				outputfile.write("TEMP_START_RANGE:" + Settings.TEMP_FILE + "\n");
-				outputfile.write("W:" + Settings.W + "\n");
-			}
-			else {
-				outputfile.write("TEMP_FILE:0\n");
-				outputfile.write("TEMP_START_RANGE:0\n");
-				outputfile.write("W:Inf\n");
-
-			}
-			
-			/** DORMANCY */	
-			outputfile.write("SIZE_REFUGE:" + Settings.SIZE_REFUGE + "\n");		
-
-			outputfile.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}				
-	}
-
-
-
-	public static int loadSeed() {
-		String hourDayString = "" + Settings.LOAD_DAY + "hr0"; 
+		String hourDayString = "" + day + "hr" + hourOfDay; 
 	    Scanner seedFile;
 		try {
-			seedFile = new Scanner(new File(Settings.DIR_OUT + "/seeds/Settings.FILE_OUT_seed_D" + hourDayString));
+			seedFile = new Scanner(new File(settings.FILE_OUT + "/seeds/settings.FILE_OUT_seed_D" + hourDayString));
 			int seed = Integer.parseInt(seedFile.nextLine());
 			seedFile.close();
 			return seed;
@@ -367,6 +302,24 @@ public class FileIO {
 	}
 
 
+	/**record settings in file 
+	 * @throws IOException */
+	public static void makeSettingsFile(String filename, String settingsString) throws IOException {
+		
+		//create directory
+		new File(filename).mkdir();
+	
+		File outFile = new File(filename +  "_Settings.ini");
+		
+		//save
+		try {
+			FileWriter outFileWriter = new FileWriter(outFile,false);
+			outFileWriter.write(settingsString);
+			outFileWriter.close();
+		} catch (IOException e) {
+			throw e;
+		}				
+	}
 
 
 

@@ -1,0 +1,134 @@
+	/************** SCIENTIFIC SETTINGS *********************************/
+			
+			//Total simulation duration in years
+			public final int DURATION = 10000;
+			/**number of individuals per lineage at start */
+			public final int INIT_LIN_SIZE = 1;
+			/**random seed for simulation ( -1 = randomly select random seed) */
+			public final int SEED = -1;
+			/**total simulation duration in years */
+			public final int K = 100;
+			/**starting population of each location (grid box) divided by K*/
+			/**this should be the same as the equilibrium population, i.e. the population at which growth == mortality*/
+			/**with growth = 0.8 and mortality = 0.1 this equals 0.875*/
+			public final double P_0 = 0.875;
+					/**initial population size of each location, i.e. K * P_0 - DO NOT CHANGE */
+					public final double INITIAL_P;
+
+			
+			//TRANSPORT MATRIX
+			/**number of locations in TM*/
+			public final int NUM_BOXES = 6386;
+			/**relative path to txt file where TM is held */
+			public final String TM_FILE = "TMD6386bsFilt.txt";
+			public final boolean BUILD_TM = false;
+
+			
+			// GROWTH
+			/**mortality per day*/
+			public final double MORTALITY_DAY = 0.1;
+			/**growth rate per day*/
+			public final double GROWTH_RATE_DAY = 0.8;
+			/**number of hours between growth/mortality timesteps*/
+			public final double GROWTH_HOURS = 24.0; //
+		
+			
+			// DISPERSAL
+			/**number of hours between dispersal timesteps*/
+			public final double DISP_HOURS = 24.0;
+			/**path to file containing volumes (volume of each location relative to mean)*/
+			public final String VOL_FILE = "vols6386.csv"; 
+			/**multiply each dispersal pathway by this*/
+			public final double DISP_SCALER = 1;
+					// Growth/Dispersal - derived parameters DO NOT CHANGE
+					final double GROWTH_PER_DISP;
+					public final double GROWTH_RATE;
+					public final double MORTALITY;
+					//by default with 1 day ts for growth/mortality and dispersal:
+								//GROWTH_PER_DISP=1, GROWTH_RATE=GROWTH_RATE_DAY, MORTALITY=MORTALITY_DAY 
+			
+			//SELECTION
+			/**niche width*/
+			public final float W = 12.0f;
+			/**path to temperature file (tenv of each location)*/
+			public final String TEMP_FILE = "temps6386.csv";
+			/**topts of lineages will be uniformly distributed from tenv - (TEMP_START_RANGE / 2) to tenv + (TEMP_START_RANGE / 2) */
+			public final float TEMP_START_RANGE = 10.0f;
+			
+			
+			//DORMANCY	
+			/**proportion of each lineage randomly selected to "sink" (be removed from growth/mortality but not dispersal processes) each growth timestep*/
+				/**same proportion of individuals from sunken lineages are unsunk*/
+			public final double SIZE_REFUGE = 0;
+
+			
+			/** NOT FOR FULL SIMULATIONS - switch on for running special simulation to calculate tmins*/
+			public final boolean TRACER_MODE =false;
+
+			public final boolean TOP_DOWN = true;
+
+			
+	/************** OUTPUT/LOADING SETTINGS *********************************/
+
+			//OUTPUT
+			/**path for where to save output*/
+			public final String FILE_OUT = "Maps/100neut";
+					/**extracted from FILE_OUT - don't change */
+					public final String DIR_OUT;
+			/**time in seconds before outputs message just to show hasn't crashed - if no proper update yet happened*/ 
+			public final long TIME_THRESH = 1;
+			
+			
+			/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
+			public final String SAVE_TIMESTEPS_FILE = null;
+			/**default days for saving (assuming max 10,000 year: log 10 space years at intervals of 0.1, converted to days by multiplying by 365 and rounding)*/
+			public final final int[] DEFAULT_SAVE_TIMESTEPS = new int[]{Integer.MAX_VALUE};
+				/**days extract from REPORT_TIMESTEPS_FILE (or default) - don't change*/
+				public final int[] SAVE_TIMESTEPS = DEFAULT_SAVE_TIMESTEPS;
+				
+
+				
+			/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
+			public final String REPORT_TIMESTEPS_FILE = null;
+			/**default days for saving (assuming max 10,000 year: log 10 space years at intervals of 0.1, converted to days by multiplying by 365 and rounding)*/
+			public final final int[] DEFAULT_REPORT_TIMESTEPS = new int[]{0,36,46,58,73,92,115,145,183,230,290,365,460,578,728,917,1154,1453,1829,2303,2899,3650,4595,5785,7283,9168,11542,14531,18293,23030,28993,36500,45951,57849,72827,91684,115423,145309,182933,230299,289930,365000,459508,578486,728271,916839,1154231,1453091,1829333,2302994,2899298,3650000};
+				/**days extract from REPORT_TIMESTEPS_FILE (or default) - don't change*/
+				public final int[] REPORT_TIMESTEPS = DEFAULT_SAVE_TIMESTEPS;
+
+		
+				
+			/**if true simulation will finish when global diversity = 1*/
+			public final boolean STOP_AT_1; 
+
+
+		
+			// LOADING PREVIOUS RUNS
+			/**if loading previous run, gives day and hour to load 
+			 * format = day:hour (eg: 365:8 for hour 8 on day 365)
+			 * :0 can be omitted*/		
+			public final String LOAD_DAY_STRING = null;
+				/**day extracted from LOAD_DAY_STRING - don't change*/
+				public final int LOAD_DAY = 0;
+				/**hour extracted from LOAD_DAY_STRING - don't change*/
+				public final int LOAD_HOUR = 0;
+
+			
+			/**path for where to load file*/
+			public final String LOAD_FILE = null;
+					/**extracted from LOAD_FILE - don't change */
+					public final String LOAD_DIR;
+					
+	/************** PARALLELIZATION / DISTRIBUTION AND OTHER PURELY TECHNICAL SETTINGS *********************************/
+			
+			/**csv file specifying how locations are divided into clusters and clusters into nodes
+			 * clusters = parallelized within one computer
+			 * nodes = parallelized across computers*/
+			public final String CLUST_FILE = null;
+			/**should be set to length of time available on HPC, to ensure prints loadable output immediately before job evicted*/
+			public final double EXPERIMENT_HOURS = 60;
+			
+			
+			/**Used internally to distinguish sunken lineages*/
+			public final final int SINK_OFFSET = (int) 1e9;
+			
+			public final final int LOAD_SEED = Integer.MIN_VALUE;

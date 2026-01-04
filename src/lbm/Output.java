@@ -26,49 +26,59 @@ public class Output {
 
 
 
-	public static int[] startOutput(long day, List<GridBox> activeCells, int globalDiversity) throws Exception {
+	public static long[] startOutput(List<GridBox> activeCells, int globalDiversity, Settings settings) throws Exception {
 	
 		
 		//find first time stamp (in days) on which to save
 		saveI = 0;
-		int saveNext = Settings.SAVE_TIMESTEPS[saveI];
+		long saveNext = settings.SAVE_TIMESTEPS_ARR[saveI];
+		
+		long hour = settings.LOAD_HOUR;
+		
 		//in case loaded saved run - find next time stamp (in days) on which to save
-		while(day > 0 && day >= saveNext) {
+		while(hour > 0 && hour >= saveNext) {
 			saveI++;
-			saveNext = Settings.SAVE_TIMESTEPS[saveI];
+			saveNext = settings.SAVE_TIMESTEPS_ARR[saveI];
 		}
 		
 		//save timestamp 0 if requested
-		save(day, 0, activeCells);
+		if(saveNext == 0)
+				saveNext = save(hour, activeCells, settings);
 		
 		//find first time stamp (in days) on which to report
 		reportI = 0;
-		int reportNext = Settings.REPORT_TIMESTEPS[reportI];
+		long reportNext = settings.REPORT_TIMESTEPS_ARR[reportI];
 		//in case loaded saved run - find next time stamp (in days) on which to save
-		while(day > 0 && day >= reportNext) {
+		while(hour > 0 && hour >= reportNext) {
 			reportI++;
-			reportNext = Settings.REPORT_TIMESTEPS[reportI];
+			reportNext = settings.REPORT_TIMESTEPS_ARR[reportI];
 		}
 		
 		//report timestamp 0 if requested
-		report(day, activeCells, globalDiversity);
+		if(reportNext == 0)
+			reportNext = report(hour, activeCells, globalDiversity, settings);
 
-		return new int[] {saveNext, reportNext};
+		return new long[] {saveNext, reportNext};
 	}
 	
 	
-	public static int save(long day, int hourOfDay, List<GridBox> activeCells) throws Exception {
-		String hourDayString = "" + day + "hr" + hourOfDay; 
+	public static long save(long hour, List<GridBox> activeCells, Settings settings) throws Exception {
+			//all output is currently not in hours but [day]h[hourOfDay] format
+			//for back compatibility as formally only counted days
+			long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+			int hourOfDay = (int) (settings.LOAD_HOUR - (day * 24));
+			String hourDayString = "" + day + "hr" + hourOfDay; 
+
 			
 			for(GridBox cell : activeCells)
 				cell.combineImmigrants();
 			
 			//include length of longest row for easier loading into R
 			int lineLength = (activeCells.stream().mapToInt(GridBox::getNumLins).max().getAsInt() *    
-						(Settings.TEMP_FILE == null ? 2 : 3) //line will be longer if topt printed (i.e. in selective simulations)
+						(settings.TEMP_FILE == null ? 2 : 3) //line will be longer if topt printed (i.e. in selective simulations)
 					) + 1;
 			
-			String filename = Settings.DIR_OUT + "/" + Settings.FILE_OUT + "s" + lineLength + "_D" + hourDayString + "_N" + RunnerParallelization.getRank() + ".csv";
+			String filename = settings.FILE_OUT + "s" + lineLength + "_D" + hourDayString + "_N" + RunnerParallelization.getRank() + ".csv";
 			FileIO.printAll(activeCells, filename);
 			
 			
@@ -76,18 +86,24 @@ public class Output {
 			saveI ++;
 			
 			//saveNext = when next to save
-			return ((saveI < Settings.SAVE_TIMESTEPS.length)   ?
-								Settings.SAVE_TIMESTEPS[saveI] :
+			return ((saveI < settings.SAVE_TIMESTEPS_ARR.length)   ?
+								settings.SAVE_TIMESTEPS_ARR[saveI] :
 								Integer.MAX_VALUE
 					);
 	}	
 		
-	public static int report(long day, List<GridBox> activeCells, int globalDiversity) throws Exception {	
+	public static long report(long hour, List<GridBox> activeCells, int globalDiversity, Settings settings) throws Exception {	
+		
+			//all output is currently not in hours but [day]h[hourOfDay] format
+			//for back compatibility as formally only counted days
+			long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+
+		
 		
 			for(GridBox cell : activeCells)
 				cell.combineImmigrants();
 			
-			if(Settings.TRACER_MODE) {
+			if(settings.TRACER_MODE) {
 				for(GridBox cell : activeCells)
 					cell.tracerPrint(day, activeCells);
 				
@@ -101,8 +117,8 @@ public class Output {
 			reportI ++;
 			
 			//reportNext = when next to report
-			return ((reportI < Settings.REPORT_TIMESTEPS.length)   ?
-								Settings.REPORT_TIMESTEPS[reportI] :
+			return ((reportI < settings.REPORT_TIMESTEPS_ARR.length)   ?
+						settings.REPORT_TIMESTEPS_ARR[reportI] :
 								Integer.MAX_VALUE
 					);	
 		}
@@ -113,9 +129,20 @@ public class Output {
 	 * @param day
 	 * @param hourOfDay
 	 * @param activeCells 
+	 * @param neutral 
+	 * @param DIR_OUT 
+	 * @param FILE_OUT 
 	 * @throws Exception
 	 */
-	public static void checkPoint(long day, int hourOfDay, List<GridBox> activeCells) throws Exception {
+	public static void checkPoint(long hour, List<GridBox> activeCells, Settings settings) throws Exception {
+		//all output is currently not in hours but [day]h[hourOfDay] format
+		//for back compatibility as formally only counted days
+		long day = (long) Math.floor(settings.LOAD_HOUR / 24);
+		int hourOfDay = (int) (settings.LOAD_HOUR - (day * 24));
+		String hourDayString = "" + day + "hr" + hourOfDay; 
+
+		
+		
 		//print two checkpoints just in case
 		//there is no way to ensure cluster won't shut down while checkpointing
 		if(checkpointCounter == 2)
@@ -123,18 +150,16 @@ public class Output {
 		
 					
 		System.out.println("Checkpointing started");
-
-		String hourDayString = "" + day + "hr" + hourOfDay; 
 			
 		for(GridBox cell : activeCells)
 			cell.combineImmigrants();
 		
 		//include length of longest row for easier loading into R
 		int lineLength = (activeCells.stream().mapToInt(GridBox::getNumLins).max().getAsInt() *    
-					(Settings.TEMP_FILE == null ? 2 : 3) //line will be longer if topt printed (i.e. in selective simulations)
+					(settings.TEMP_FILE == null ? 2 : 3) //line will be longer if topt printed (i.e. in selective simulations)
 				) + 1;
 		
-		String filename = Settings.DIR_OUT + "/" + Settings.FILE_OUT + "s" + lineLength + "_D" + hourDayString + "_N" + RunnerParallelization.getRank() + ".csv";
+		String filename = settings.FILE_OUT + "s" + lineLength + "_D" + hourDayString + "_N" + RunnerParallelization.getRank() + ".csv";
 		FileIO.printAll(activeCells, filename);
 
 		
@@ -147,8 +172,8 @@ public class Output {
 	}
 
 
-	public static void logToCSV() throws IOException {
-		FileWriter csvWriter = new FileWriter(Settings.DIR_OUT + "/" + Settings.FILE_OUT + ".csv", true);
+	public static void logToCSV(String FILE_OUT) throws IOException {
+		FileWriter csvWriter = new FileWriter(FILE_OUT + ".csv", true);
 		csvWriter.write(reportForCSV.toString() + "\n");
 		csvWriter.close();
 	}

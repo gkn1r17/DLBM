@@ -10,37 +10,34 @@ import lbm.Settings;
 import parallelization.Cluster;
 
 public class MakeArtificialTM {
-	public static int NUM_CORES = 40;
-	public static int NUM_ROWS = 1;
-	public static int NUM_COLS = 100;
-	public static double DISP = 0.0001;
-	public static boolean GYRE = false;
-	public static double DISP_OUT = 0.0001;
-	public static double DISP_IN = 0;
-	
-	public static double SPLIT_COL = 5;
+//	public static int NUM_CORES = 40;
+//	public static int NUM_ROWS = 1;
+//	public static int NUM_COLS = 100;
+//	public static double DISP = 0.0001;
+//	public static boolean GYRE = false;
+//	public static double DISP_OUT = 0.0001;
+//	public static double DISP_IN = 0;
+//	
+//	public static double SPLIT_COL = 5;
 
 	
-	public static GridBox[] makeUniformTM() {
+	public static GridBox[] makeUniformTM(Settings settings) {
 		
 		//adjust for time intervals per generation
-		DISP = DISP / (24/ Settings.DISP_HOURS) ;
-		DISP_OUT = DISP_OUT / (24/ Settings.DISP_HOURS) ;
+		DISP = DISP / (24/ settings.DISP_HOURS) ;
+		DISP_OUT = DISP_OUT / (24/ settings.DISP_HOURS) ;
 
-		Settings.VOL_FILE = null;
-		Settings.TEMP_FILE = null;
-		Settings.NUM_BOXES = NUM_ROWS * NUM_COLS;
 		
 		StringBuilder tmWriter = new StringBuilder("From,To,Weight");
 		
-		GridBox[] cells = new GridBox[Settings.NUM_BOXES];
+		GridBox[] cells = new GridBox[settings.NUM_BOXES];
 		
 		int splitRow = (int) ((SPLIT_COL % 1.0) * NUM_ROWS);
 		if(splitRow == 0)
 			splitRow = NUM_ROWS;
 		
 		//columns then rows
-		for(int i =0; i < Settings.NUM_BOXES; i++) {
+		for(int i =0; i < settings.NUM_BOXES; i++) {
 			int from = i;
 			int[] tos = GYRE ?
 					new int[] {i + 1} :
@@ -49,23 +46,23 @@ public class MakeArtificialTM {
 			
 			
 			if(cells[from] == null)
-                cells[from] = new GridBox(from, 1.0, new double[] {-999.0} );
+                cells[from] = new GridBox(from, 1.0, new double[] {-999.0}, settings );
 			for(int to : tos) {
 				
 				if(GYRE) {
-					if(to == Settings.NUM_BOXES)
+					if(to == settings.NUM_BOXES)
 						to = 0;
 				}
-				if(to < Settings.NUM_BOXES && to >= 0) {
+				if(to < settings.NUM_BOXES && to >= 0) {
 					if(cells[to] == null)
-						cells[to] = new GridBox(to, 1.0, new double[] {-999.0} );
-					if(GYRE &&  (to == 0 || to == Settings.NUM_BOXES / 2) && DISP_OUT != DISP) {
+						cells[to] = new GridBox(to, 1.0, new double[] {-999.0}, settings );
+					if(GYRE &&  (to == 0 || to == settings.NUM_BOXES / 2) && DISP_OUT != DISP) {
 						if(DISP_OUT > 0)
 							cells[from].addDest(DISP_OUT, cells[to], tmWriter);
-						if(to == Settings.NUM_BOXES / 2)
+						if(to == settings.NUM_BOXES / 2)
 							cells[from].addDest(DISP - DISP_OUT, cells[0], tmWriter);
 						else
-							cells[from].addDest(DISP - DISP_OUT, cells[Settings.NUM_BOXES / 2], tmWriter);
+							cells[from].addDest(DISP - DISP_OUT, cells[settings.NUM_BOXES / 2], tmWriter);
 						
 					}
 					else{
@@ -97,14 +94,14 @@ public class MakeArtificialTM {
 		//allocate clusters
 		int clustRows = 1;
 		int clustCols = 1;
-		if(Settings.NUM_BOXES > NUM_CORES) {
+		if(settings.NUM_BOXES > NUM_CORES) {
 		
-			int clustSize = (int) Math.round((double)Settings.NUM_BOXES / (double)NUM_CORES);
+			int clustSize = (int) Math.round((double)settings.NUM_BOXES / (double)NUM_CORES);
 			clustRows = Math.min(NUM_ROWS,(int) Math.round(Math.sqrt(clustSize)));
 			clustCols = clustSize / clustRows;
 		}
 		
-        for(int i =0 ; i < Settings.NUM_BOXES; i++) {
+        for(int i =0 ; i < settings.NUM_BOXES; i++) {
         	try {
 				cells[i].sortMovers(cells);
 			} catch (Exception e) {
@@ -130,7 +127,7 @@ public class MakeArtificialTM {
 		            
 		            
 		            int cellI = startY + (NUM_COLS * y) + startX + x;
-//		            if(cellI < Settings.NUM_BOXES) {
+//		            if(cellI < settings.NUM_BOXES) {
 //		            		clusts.putIfAbsent(clustI, new Cluster(rd.nextInt(),0));
 //		            		clusts.get(clustI).addGridCell(cells[cellI]);
 //		 
@@ -151,7 +148,7 @@ public class MakeArtificialTM {
 		
 		
 		try {
-			FileWriter outputfile = new FileWriter(Settings.TM_FILE,false);
+			FileWriter outputfile = new FileWriter(settings.TM_FILE,false);
 			outputfile.write(tmWriter.toString());
 			outputfile.close();
 		} catch (IOException e) {

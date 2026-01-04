@@ -23,18 +23,19 @@ import java.util.HashSet;
 import java.util.List;
 
 
-public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>>{ 
+public class GridBox implements Comparable<GridBox>{ 
  
-	
- public static double maxVol; //volume of largest grid box
+ public final int id;
  private final double volume; //proportional volume (water volume / maxVol)
  
+ private final Settings settings;
+
+ 
  /**ID (zero indexed)*/
- public final int id;
 	
- protected TreeSet<T_lin> population; //list of currently present lineages 
+ protected TreeSet<Lineage> population; //list of currently present lineages 
  private int size; //current total population size
- private int myCC; //carrying capacity (fixed K stored in Settings.CC * volume)
+ private int myCC; //carrying capacity (fixed K stored in settings.CC * volume)
  private int begin; //ID of first lineage initialized in this location
  private int end; //ID of last lineage initialized in this location
  
@@ -43,18 +44,19 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
  private double currentTemp; //current temperature
  private int oldTempTsinvt = -1; //for calculating if temperature due change 
 
- private int myLinSize = 1; //lineage size, normally equal to Settings.INIT_LIN_SIZE unless whole population = one lineage
+ private int myLinSize = 1; //lineage size, normally equal to settings.INIT_LIN_SIZE unless whole population = one lineage
  
  /**Dispersal*/
  private double totalMovProb; //probability of being dispersed anywhere
- private ArrayList<DispersalHandler<T_lin>> movers = new ArrayList<DispersalHandler<T_lin>>(); //each handles dispersal to one sink
+ private ArrayList<DispersalHandler> movers = new ArrayList<DispersalHandler>(); //each handles dispersal to one sink
 
  /**Tracer Mode */
  private HashSet<Integer> arrivedFrom = new HashSet<Integer>();
 
 
  /**Parallelization*/
- private GridBoxParallelization<T_lin> parallelGB;
+ private GridBoxParallelization parallelGB;
+
 
 
 
@@ -62,30 +64,30 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 /***************************** INITIALISATION **********************************************/
 /*******************************************************************************************/
 
-	 public GridBox(int id, double volume, double[] temps) { 
+	 public GridBox(int id, double volume, double[] temps, Settings settings) { 
 		this.id = id;
 		this.tsintvTemps = temps;
-		this.currentTemp = temps[0];
 		this.volume = volume;
+		this.settings = settings;
 	 } 
 	 
 	 
-	 /** Initialize with Settings.INIT_LIN_SIZE individuals in each lineage */
+	 /** Initialize with settings.INIT_LIN_SIZE individuals in each lineage */
 	public void initPop() {
-		population = new TreeSet<T_lin>();
+		population = new TreeSet<Lineage>();
 		     
-		if(Settings.TRACER_MODE) {						
-			population.add((T_lin) Lineage.makeNew(myCC = (int) Math.round(Settings.K * volume),begin));
+		if(settings.TRACER_MODE) {						
+			population.add(Lineage.makeNew(myCC = (int) Math.round(settings.K * volume),begin, settings.TEMP_FILE == null));
 		}
 		else {
 			
 			//create all lineages
 			for(int i = begin; i < end; i++)
-				population.add((T_lin) Lineage.makeNew(myLinSize,i));
+				population.add(Lineage.makeNew(myLinSize,i,settings.TEMP_FILE == null));
 		}
 		
 		//initialise local carrying capacity
-		myCC = (int) Math.round(Settings.K * volume);
+		myCC = (int) Math.round(settings.K * volume);
 	}
 	
 	
@@ -95,10 +97,11 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @throws Exception
 	 */
 	public void addLoadedPop(String[] tokens) throws Exception {
-		population = new TreeSet<T_lin>();
+		population = new TreeSet<Lineage>();
 		size = 0;
+		boolean neutral = settings.TEMP_FILE == null;
 		for(int i = 1; i < tokens.length; i+= 
-				(Settings.TEMP_FILE == null ? 2 : 3) //find lineage ID every two columns in non selective simulations 
+				(neutral ? 2 : 3) //find lineage ID every two columns in non selective simulations 
 															//and every three columns in selective simulations  
 				) {
 			
@@ -117,10 +120,10 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 			if(id < Settings.SINK_OFFSET)
 				size += num; //add to population size
 			
-			if(Settings.TEMP_FILE == null)//add neutral lineage
-				population.add((T_lin) Lineage.makeNew(num, id)); 
+			if(settings.TEMP_FILE == null)//add neutral lineage
+				population.add(Lineage.makeNew(num, id, neutral)); 
 			else //add selective lineage with saved temperature	
-				population.add((T_lin) Lineage.makeNew(num, id, Float.parseFloat(tokens[i + 2]))); 
+				population.add(Lineage.makeNew(num, id, Float.parseFloat(tokens[i + 2]))); 
 				
 			
 		}
@@ -128,7 +131,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 		if(size < 0)
 			throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
 
-		myCC = (int) Math.round(Settings.K * volume);
+		myCC = (int) Math.round(settings.K * volume);
 	}
 
 	
@@ -138,8 +141,8 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @param dest GridBox
 	 * @param tmWriter : only used in util.MarkArtificialTM
 	 */
-	public void addDest(double prob, GridBox<T_lin> dest, StringBuilder tmWriter) {
-		movers.add(new DispersalHandler<T_lin>(dest, prob));
+	public void addDest(double prob, GridBox dest, StringBuilder tmWriter) {
+		movers.add(new DispersalHandler(dest, prob));
 		
 		if(tmWriter != null)
 			tmWriter.append("\n" + (id + 1) + "," + (dest.id + 1) + "," + prob);
@@ -170,8 +173,8 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 		}
 		
 		//main ecological update loop repeats T_disp / T_growth
-		for(int i = 0; i < Settings.GROWTH_PER_DISP; i++)
-			growDieAll(rd, bn, pn, i == Settings.GROWTH_PER_DISP - 1, i == 0 && tempChanged);
+		for(int i = 0; i < settings.GROWTH_PER_DISP; i++)
+			growDieAll(rd, bn, pn, i == settings.GROWTH_PER_DISP - 1, i == 0 && tempChanged);
 
 	}
 
@@ -186,25 +189,25 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @throws Exception
 	 */
 	public void growDieAll(DRand rd, Binomial bn, Poisson pn, boolean dispersing, boolean tempChanged) throws Exception {
-		boolean willGrow = Settings.TOP_DOWN ? true : myCC > size;
+		boolean willGrow = settings.TOP_DOWN ? true : myCC > size;
 		
 		//get growth rate and mortality
-		double gr = Settings.TOP_DOWN ? 
-				Settings.GROWTH_RATE
-				: ((1.0 - ((double)size / myCC)) * Settings.GROWTH_RATE);
-		double mort = Settings.TOP_DOWN ? 
-				(Settings.GROWTH_RATE / myCC) * size 
-				: Settings.MORTALITY;
+		double gr = settings.TOP_DOWN ? 
+				settings.GROWTH_RATE
+				: ((1.0 - ((double)size / myCC)) * settings.GROWTH_RATE);
+		double mort = settings.TOP_DOWN ? 
+				(settings.GROWTH_RATE / myCC) * size 
+				: settings.MORTALITY;
 		
 		
-		for(T_lin s : population) { //for every lineage
+		for(Lineage s : population) { //for every lineage
 			
 			if(s.size == 0)
 					continue;
 
 			//grow/die
-			if(!s.isSunk() && !Settings.TRACER_MODE)
-				size += s.growDie(willGrow, gr, mort, currentTemp, tempChanged, this, pn, bn, rd);
+			if(!s.isSunk() && !settings.TRACER_MODE)
+				size += s.growDie(willGrow, gr, mort, currentTemp, tempChanged, settings.W, this, pn, bn, rd);
 			
 			
 			//disperse
@@ -212,7 +215,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 				dispBinomial(s, bn, rd);
 				
 				//dormant spores
-				if(Settings.SIZE_REFUGE > 0 && s.size > 0) {
+				if(settings.SIZE_REFUGE > 0 && s.size > 0) {
 					disperseSpores(s, bn, rd);
 				}
 				
@@ -244,7 +247,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @param rd
 	 * @throws Exception
 	 */
-	private void dispBinomial(T_lin lin, Binomial bn, DRand rd) throws Exception {
+	private void dispBinomial(Lineage lin, Binomial bn, DRand rd) throws Exception {
 		
 		//calculate total number of individuals to disperse
 		int numMov = ProbFunctions.getBinomial(lin.size, totalMovProb, bn, null);
@@ -268,7 +271,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 		for(int i =0; i < numMov; i++) { //for every individual moving
 			double randomWhich = rd.nextDouble(); //random value 0 to 1 to calculate which sink to move to
 			int n = 0;
-			for(DispersalHandler<T_lin> mov : movers) { //choose a sink
+			for(DispersalHandler mov : movers) { //choose a sink
 				double prob = noBinomial ? mov.getAccumProb() : mov.getNormedAccumProb(); 
 				
 				if(randomWhich <= prob) {
@@ -308,7 +311,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @param lin Lineage object
 	 * @param num number individuals dispersed here
 	 */
-	public void disperseToMe(T_lin lin, int num) {
+	public void disperseToMe(Lineage lin, int num) {
 		parallelGB.disperseToMe(lin, num);
 	}
 	
@@ -319,17 +322,17 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 * @param boxes all locations in system
 	 * @throws Exception
 	 */
-	public void sortMovers(GridBox<T_lin>[] boxes) throws Exception {
+	public void sortMovers(GridBox[] boxes) throws Exception {
 		Collections.sort(movers);
 		double accum = 0.0;
-		for(DispersalHandler<T_lin> m : movers) {
+		for(DispersalHandler m : movers) {
 			accum += m.getProb();
 			m.setAccumProb(accum);
 		}
 
 		totalMovProb = accum;
 		
-		for(DispersalHandler<T_lin> m : movers) {
+		for(DispersalHandler m : movers) {
 			m.setNormedAccumProb(m.getAccumProb() / totalMovProb);
 		}
 	}
@@ -363,7 +366,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	 */
 	public String writeTree() {
 		StringBuilder tStr = new StringBuilder();
-		for (T_lin lin : population) {
+		for (Lineage lin : population) {
 			tStr.append(lin.getDetails() + ",");
 		}
 		return tStr.toString();
@@ -390,7 +393,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 //		HashMap<Integer, Integer> cellCounts = new HashMap<Integer, Integer>();
 //		for(Lineage lin : population) {
 //			
-//			if(lin.getId() < Settings.SINK_OFFSET) {
+//			if(lin.getId() < settings.SINK_OFFSET) {
 //				int box = Lineage.getOrign(id, lin.getId());
 //			
 //				cellCounts.compute(box, (k, v) -> (v == null) ? lin.size : v + lin.size);
@@ -413,7 +416,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 		public boolean equals(Object oth) {
 			if(this == oth)
 				return true;
-			return( ((GridBox<T_lin>)oth).id == this.id);
+			return( ((GridBox)oth).id == this.id);
 			
 		}
 
@@ -424,10 +427,10 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	    }
 
 		@Override
-		public int compareTo(GridBox<T_lin> oth) {
+		public int compareTo(GridBox oth) {
 			if(this == oth)
 				return 0;
-			return(this.id - ((GridBox<T_lin>)oth).id);
+			return(this.id - ((GridBox)oth).id);
 		}
 
 
@@ -444,7 +447,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 //		public void getMeanSD() {
 //			//get distribution of sizes
 //			HashMap<Float,Integer> numByTopt = new HashMap<Float,Integer>();
-//			for(T_lin lin : population)
+//			for(Lineage lin : population)
 //				numByTopt.compute(lin.getTopt(), (k, v) -> (v == null) ? lin.size : v + lin.size);
 //
 //
@@ -489,23 +492,23 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 		public int initIDSizeTemp(int bgn) {
 			
 			//set initial population size at equilibrium
-			size = (int) Math.round(Settings.INITIAL_P * volume);
+			size = (int) Math.round(settings.INITIAL_P * volume);
 			//number of lineages to start with
-			int numLins = (int) Math.round((double)size / (double)Settings.INIT_LIN_SIZE);
+			int numLins = (int) Math.round((double)size / (double)settings.INIT_LIN_SIZE);
 			
 			
-			if(Settings.INIT_LIN_SIZE == Settings.INITIAL_P) { //one lineage per location scenario
+			if(settings.INIT_LIN_SIZE == settings.INITIAL_P) { //one lineage per location scenario
 				myLinSize = size;
 				numLins = 1;
 				
 			}else //multiple lineages per location
-				myLinSize = Settings.INIT_LIN_SIZE;
+				myLinSize = settings.INIT_LIN_SIZE;
 			
 			//adjust initial population size to exact multiple of number of lineages
 					//(not relevant if one individual per lineage equal to equilibrium size)
 			size = myLinSize * numLins;
 			
-			if(Settings.TRACER_MODE)
+			if(settings.TRACER_MODE)
 				numLins = 1;
 
 			
@@ -515,7 +518,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 			end = begin + numLins;
 
 			
-			if(Settings.TEMP_FILE == null) {
+			if(settings.TEMP_FILE == null) {
 				
 					return end;
 
@@ -525,8 +528,8 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 			
 			/////////// TEMPERATURE STUFF ////////////////////////
 			
-		     double minTemp =  (currentTemp - (Settings.TEMP_START_RANGE / 2.0)  );
-		     double maxTemp = (float) (currentTemp + (Settings.TEMP_START_RANGE/2.0)   );
+		     double minTemp =  (currentTemp - (settings.TEMP_START_RANGE / 2.0)  );
+		     double maxTemp = (float) (currentTemp + (settings.TEMP_START_RANGE/2.0)   );
 		     
 		     if(tsintvTemps.length > 1) {
 		    	 minTemp = Arrays.stream(tsintvTemps).min().getAsDouble();
@@ -659,15 +662,15 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 //	}
 
 
-	public TreeSet<T_lin> getPopulation() {
+	public TreeSet<Lineage> getPopulation() {
 		return population;
 	}
 
 
-	public void disperseSpores(T_lin s, Binomial bn, DRand rd) throws Exception {
-		int sinkNum = ProbFunctions.getBinomial(s.size, Settings.SIZE_REFUGE, bn, rd);
+	public void disperseSpores(Lineage s, Binomial bn, DRand rd) throws Exception {
+		int sinkNum = ProbFunctions.getBinomial(s.size, settings.SIZE_REFUGE, bn, rd);
 		if(sinkNum > 0) {
-			T_lin sunk = (T_lin) s.makeSunk(sinkNum);
+			Lineage sunk =  s.makeSunk(sinkNum, settings.TEMP_FILE == null);
 			
 			disperseToMe(sunk, sinkNum);
 			
@@ -685,10 +688,10 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 
 
 	public void setupParallelization() {
-		parallelGB = new GridBoxParallelization<T_lin>();
+		parallelGB = new GridBoxParallelization(settings);
 	}
 	
-	public GridBoxParallelization<T_lin> getParallel(){
+	public GridBoxParallelization getParallel(){
 		return parallelGB;
 	}
 
@@ -705,7 +708,7 @@ public class GridBox<T_lin extends Lineage> implements Comparable<GridBox<T_lin>
 	}
 
 
-	public ArrayList<DispersalHandler<T_lin>> getMovers() {
+	public ArrayList<DispersalHandler> getMovers() {
 		return movers;
 	}
 
