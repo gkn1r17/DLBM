@@ -1,30 +1,37 @@
+/**Represents single Lineage
+ * NOTE: There are huge numbers of this object so variables present are minimised
+ * 		 as due to parallelised/distributed architecture must be copied to different clusters/nodes
+ * TODO Move birthHour into LineageDetails object extensible for storing any further lineage details
+ * 		(object not needing to be copied to different clusters/nodes to save memory)
+ */
+
 package lineages;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.ListIterator;
-import java.util.TreeMap;
-import java.util.TreeSet;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
 
 import cern.jet.random.Binomial;
 import cern.jet.random.Poisson;
 import cern.jet.random.engine.DRand;
-import lbm.GridBox;
-import lbm.Settings;
-import parallelization.RunnerParallelization;
+import config.ControlConfig;
+import config.SciConfig;
+import control.Runner;
+import transportMatrix.GridBox;
+import transportMatrix.Phylogeny;
 import util.ProbFunctions;
 
 public abstract class Lineage implements Comparable<Lineage>{
 
 	public int size = 0;
-	protected final int id;
+	protected final long id;
+	protected final long birthHour;
 	
-	//private static ArrayList<Integer> originLins = new ArrayList<Integer>();
-
-	
-	public Lineage(int sz, int id) {
+	protected Lineage(int sz, long id, long birthHour) {
 		size = sz;
 		this.id = id;
+		this.birthHour = birthHour;
 	}
 	
 	@Override
@@ -37,20 +44,25 @@ public abstract class Lineage implements Comparable<Lineage>{
 
 	
 	public boolean isSunk() {
-		return id >= Settings.SINK_OFFSET;
+		return id >= ControlConfig.SINK_OFFSET;
 	}
 
 
 	@Override
     public int hashCode(){
-        return getId();
+		
+		//on the basis that in most runs id < Integer.MAX_VALUE 
+		return (int)(id % Integer.MAX_VALUE);
     }
 
 	@Override
 	public int compareTo(Lineage oth) {
 		if(this == oth)
 			return 0;
-		return(this.getId() - oth.getId());
+		
+		return(this.id == oth.id ? 0 :
+				(this.id > oth.id ? 1 : -1)
+				);
 	}
 
 	
@@ -59,7 +71,10 @@ public abstract class Lineage implements Comparable<Lineage>{
 	}
 
 	public String getDetails() {
-		return getId() + "," + size;
+		String out = id + "," + size;
+		if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
+			out = out + "," + birthHour;
+		return out;
 	}
 	
 	public double[] getDetailsArr() {
@@ -72,31 +87,12 @@ public abstract class Lineage implements Comparable<Lineage>{
 	public abstract<T extends Lineage> T copy(int num);
 
 
-	public double getSelectiveGrowth(double temp, boolean tempChanged) {
+	public double getSelectiveGrowth(double temp, boolean tempChanged, float w) {
 		return 1.0;
 	};
 
-	public static Lineage makeNew(int[] extIm) {
-		if(Settings.TEMP_FILE == null)
-			return new NeutralLineage(extIm[1], extIm[0]);
-		else
-			return new SelLineage(extIm[1], extIm[0]);
-	}
-	
-	public static Lineage makeNew(int size, int id) {
-		if(Settings.TEMP_FILE == null)
-			return new NeutralLineage(size, id);
-		else
-			return new SelLineage(size, id);
-	}
-	
-	public static Lineage makeNew(int size, int id, float temp) {
-		SelLineage.addTemp(id, temp);
-		return new SelLineage(size, id);
-	}
 
-
-	public int getId() {
+	public long getId() {
 		return id;
 	}
 
@@ -107,66 +103,130 @@ public abstract class Lineage implements Comparable<Lineage>{
 	 * @param mortality
 	 * @param temp
 	 * @param tempChanged
-	 * @param gridCell
+	 * @param gridBox
 	 * @param pn
 	 * @param bn
 	 * @param rd
+	 * @param hour 
 	 * @return
 	 * @throws Exception
 	 */
-	public int growDie(boolean willGrow, double growth, double mortality, double temp, boolean tempChanged, GridBox gridCell, Poisson pn, Binomial bn, DRand rd) throws Exception {
+	public int growDie(boolean willGrow, double growth, double mortality,  
+			double temp, boolean tempChanged, 
+			GridBox gridBox, Poisson pn, Binomial bn, DRand rd, 
+			Phylogeny phylogeny, LinkedList<Lineage> mutants, long hour) throws Exception {
+		
+		//******** GROWTH
 		int add = willGrow ?
-				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged), bn, rd) :
+				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged, Runner.settings.SCI.W), bn, rd) :
 					0;
-
+		//
+		
+		
+		//******** MORTALITY
 		int die = ProbFunctions.getBinomial(size, mortality, bn, rd);
-		int totalAdd = Math.max(-size, add - die);
-		size += totalAdd;
+		//
+		
+		
+		//******** MUTATION 
+		int mutate = (add > 0 && Runner.settings.SCI.MUTATION > 0) ?
+					ProbFunctions.getBinomial(add, Runner.settings.SCI.MUTATION, bn, rd) :
+						0;
+		if(mutate > 0) {
+			addMutants(mutate, phylogeny,  mutants, bn, rd, hour);
+			phylogeny.addMutants(id, mutate, hour); //add record of mutants for outputting as phylogeny
+		}
+		if(Runner.settings.CTRL.DEBUG)
+			gridBox.debugMutants(mutate, add - die);
+		//
+		
+		
+		//add net population size change for *Lineage*
+		size += add - die - mutate;
 		if(size < 0)
 			throw new Exception("error in Lineage growth: size cannot be < 0. size = " + size + " id = " + id);
 		
-		if(RunnerParallelization.debugSerial)
-			System.out.println(id + "," + add + "," + die);
+		//return net population size change for *GridBox* 
+									//(i.e. net population size change for *Lineage* + mutants)
+		return add - die;
 		
-		return totalAdd;	
 	}
+	
+	protected abstract void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
+																						Binomial bn, DRand rd, long hour) throws Exception;
+		
 
+
+
+	/**Make lineage sunken (or spore) lineage
+	 * 
+	 * @param sinkNum number to sink
+	 * @param neutral if neutral lineages
+	 * @return new sunken Lineage
+	 */
 	public Lineage makeSunk(int sinkNum) {
-		if(isSunk())
-			return makeNew(sinkNum, id - Settings.SINK_OFFSET);
+		
+		
+		//if already sunk will subtract SINK_OFFSET indicating not sunk
+		//if not sunk will add SINK_OFFSET
+		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
+		if(id >= ControlConfig.SINK_OFFSET) //if already sunk then unsink
+			return new NeutralLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, birthHour); 
 		else
-			return makeNew(sinkNum, id + Settings.SINK_OFFSET);
+			return new NeutralLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, birthHour); 
+	}
+	
+	/**Make Lineage from long[] = 
+	 * For Lineages that are described in distributed message from other node
+	 * 
+	 * @param extIm
+	 * @param settings
+	 * @param tempLins
+	 * @param newTemp
+	 * @return
+	 * @throws Exception
+	 */
+	public static Lineage makeNewFromDist(long[] extIm, 
+			ConcurrentHashMap<Long, Float> tempLins, Float newTemp) throws Exception {
+		//id = extIm[0]
+		//quantity = extIm[1]
+		
+		int numNew = (int)extIm[1];
+		long id = extIm[0];
+		long hourBorn = extIm[2];
+		
+		return makeNew(id, numNew, hourBorn,  tempLins, newTemp);
+		
+	}
+	
+	/**Make Lineage from 
+	 * 
+	 * @param id
+	 * @param numNew
+	 * @param hourBorn
+	 * @param settings
+	 * @param tempLins
+	 * @param newTemp
+	 * @return
+	 * @throws Exception
+	 */
+	public static Lineage makeNew(long id, int numNew, long hourBorn, 
+			ConcurrentHashMap<Long, Float> tempLins, Float newTemp) throws Exception {
+		
+		if(Runner.settings.SCI.TEMP_FILE == null)
+			return new NeutralLineage(numNew, id, hourBorn);
+		else {
+			if(newTemp == null)
+				newTemp = tempLins.get(id);
+			if(newTemp == null)
+				throw new Exception("Temperature expected but not found for selective lineage " + id);
+			return new SelLineage(numNew, id, hourBorn, newTemp);
+		}
 	}
 
-//	public static void addOrigin(int id) {
-//		originLins.add(id);
-//		
-//	}
-//
-//	public static int getOrign(int currentID, int i) {
-//		
-//		ListIterator<Integer> origIter1 = originLins.listIterator(currentID);
-//		ListIterator<Integer> origIter2 = originLins.listIterator(currentID);
-//
-//		boolean found = false;
-//		int ind = currentID - 1;
-//		while(!found) {
-//			int next = origIter1.next();
-//			ind ++;
-//			if(next > i) {
-//				while(origIter2.hasPrevious()) {
-//					int previous = origIter2.previous();
-//					if(previous < i)
-//						return ind;
-//					ind --;
-//				}
-//				return ind;
-//			}
-//		}
-//		
-//		
-//		return ind;
-//	}
+	public long getBirthHour() {
+		return birthHour;
+	}
 
 
 	

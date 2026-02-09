@@ -1,20 +1,33 @@
+/**Represents single Lineage with Selection
+ * 
+ */
+
 package lineages;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
-import lbm.Settings;
+import cern.jet.random.Binomial;
+import cern.jet.random.engine.DRand;
+import config.ControlConfig;
+import config.SciConfig;
+import control.Runner;
+import transportMatrix.GridBox;
+import transportMatrix.Phylogeny;
+import util.ProbFunctions;
 
 public class SelLineage extends Lineage{
 	
 	
-	/**mapes every lineage id to it's t_opt*/
-	private static TreeMap<Integer,Float> tempLins = new TreeMap<Integer,Float>();
 	
 	
 	/**thermal gamma 
@@ -24,28 +37,16 @@ public class SelLineage extends Lineage{
 	private final float t_opt;
 	
 
-	/**
-	 * 
-	 * @param sz size
-	 * @param id
-	 */
-	protected SelLineage(int sz, int id) {
-		
-		super(sz, id);
-		this.t_opt = tempLins.get(isSunk() ? (id - Settings.SINK_OFFSET) : id);
-		
-		//System.out.println(id + "," + t_tOpt);
-	}
 
-	protected SelLineage(int sz, int id, float t_tOpt) {
-		super(sz, id);
+	protected SelLineage(int sz, long id,  long birthHour, float t_tOpt) {
+		super(sz, id, birthHour);
 		this.t_opt = t_tOpt;
 	}
 	
 	@Override
-	public double getSelectiveGrowth(double tenv, boolean tempChanged) {
+	public double getSelectiveGrowth(double tenv, boolean tempChanged, float W) {
 		if(tempChanged || t_growthRate == -1)
-			t_growthRate = tempFunc(t_opt, tenv, Settings.W);
+			t_growthRate = tempFunc(t_opt, tenv, W);
 		return t_growthRate;
 		
 		//return tempFunc(t_tOpt, tenv, Settings.W);
@@ -61,8 +62,6 @@ public class SelLineage extends Lineage{
 	
 	public String getDetails() {
 		return super.getDetails() + "," + t_opt;
-		
-		
 	}
 	
 	public double[] getDetailsArr() {
@@ -75,22 +74,54 @@ public class SelLineage extends Lineage{
 	
 	@Override
 	public SelLineage copy(int num) {
-		return new SelLineage(num, id,  t_opt);
+		return new SelLineage(num, id, birthHour, t_opt);
 	}
 
-	public static void addTemp(int id, float temp) {
-		tempLins.put(id, temp);
+
+	public static void trimTempArray(LongStream longStream) {
+		TreeMap<Long, Float> newTempLins = new TreeMap<Long,Float>();
+		longStream.forEach(e ->
+					newTempLins.put(e, Runner.runState.tempLins.remove(e))
+				);
 		
+		Runner.runState.tempLins.clear();
+		Runner.runState.tempLins.putAll(newTempLins);
+
 	}
 
-	public static void trimTempArray(IntStream globLins) {
-//		TreeMap<Integer, Float> newTempLins = new TreeMap<Integer,Float>();
-//		globLins.forEach(e ->
-//					newTempLins.put(e, tempLins.get(e))
-//				);
-//		
-//		tempLins = newTempLins;
+
+	/**Make lineage sunken (or spore) lineage
+	 * 
+	 * @param sinkNum number to sink
+	 * @param neutral if neutral lineages
+	 * @return new sunken Lineage
+	 */
+	public Lineage makeSunk(int sinkNum) {
+		
+		
+		//if already sunk will subtract SINK_OFFSET indicating not sunk
+		//if not sunk will add SINK_OFFSET
+		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
+		if(id >= ControlConfig.SINK_OFFSET) { //if already sunk then unsink
+				return new SelLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, birthHour, t_opt); 
+		}
+		else {
+				return new SelLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, birthHour, t_opt); 
+		}
 	}
+
+	@Override
+	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
+																						Binomial bn, DRand rd, long hour) throws Exception {
+		int numUpTemp = ProbFunctions.getBinomial(numMuts, 0.5, bn, rd);
+		float addToTemp = Runner.settings.SCI.TEMP_MUTINTV;
+		for(int i =0; i < numMuts; i++) {
+			if(i == numUpTemp)
+				addToTemp = addToTemp * -1;
+			mutants.add(new SelLineage(1, phylogeny.getNextMutantCounter(), hour, t_opt + addToTemp));
+		}
+	}
+
 
 
 
