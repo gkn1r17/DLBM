@@ -1,3 +1,8 @@
+//TODO
+//error/boundary checking
+//check complete saved output matches
+//check output to CSV matches
+
 package test;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,9 +17,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import lbm.GridBox;
-import lbm.Runner;
-import lbm.Settings;
+import config.SciConfig;
+import control.Runner;
+import transportMatrix.GridBox;
 
 import static org.junit.Assert.*;
 import static org.hamcrest.CoreMatchers.*;
@@ -23,58 +28,251 @@ import static org.hamcrest.CoreMatchers.*;
 public class TestJUnit {
 	
 	
-	void loadRun() {
-		//assert( day is same )
-		//assert(hour is same)
-		//assert(temps are same)
-		//assert(populations are same)
-	}
 	
-	//checks to add:
-	//missing savetimesteps file
-	//cluster max not matching numnodes
+
 	
+	/**Runs a few sanity checks for mutation i.e. switches off mortality and checks
+	 * 1) Number of new individuals = number of mutations counted
+	 * 2) Number of new individuals roughly inline with expected mutation rate*/
 	@Test
-	void testAllSimulations() {
-		testOneSimulation("testSettings/testNeutral.ini", "testResults/testNeutral", new String[] {});
-		testOneSimulation("testSettings/testSelective.ini", "testResults/testSelective", new String[] {});
+	void testMutationSanity() {
+		
+		//DEBUG=TRUE with MUTATION > 0 automatically carries out checks above
+		runSimulation(new String[]{"NUMNODES", "1", 
+				"SETTINGS", "testSettings/testNeutral.ini", 
+				"DURATION_DAY", "100", 
+				"FILE_LOAD", "none",
+				"FILE_OUT", "testMutation/testMutation",
+				"SEED","-1",
+				"SAVE_TIMESTEPS_DAY", "100",
+				"REPORT_TIMESTEPS_DAY", "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,30,40,50,60,70,80,90,100",
+				"MUTANT_TIMESTEPS_DAY","100",
+				"DISP_HOURS", "8",
+				"GROWTH_HOURS","1",
+				//"DISP_SCALER","0",
+				//mutation test specific settings
+				"DEBUG", "true",
+				"GROWTH_RATE_DAY", "0.01",
+				"MUTATION", "0.01",
+				"MORTALITY_DAY", "0",
+				"INIT_LIN_SIZE", "100",
+				"CLUST_FILE", "clusters6386x1.csv"
+				});
+		
+		//load 1
+		runSimulation(new String[]{"NUMNODES", "7", 
+				"SETTINGS", "testSettings/testNeutral.ini", 
+				"DURATION_DAY", "200", 
+				"FILE_LOAD", "testMutation/testMutation",
+				"LOAD_DAY", "100",
+				"FILE_OUT", "testMutation/testMutation",
+				"SEED","-1",
+				"SAVE_TIMESTEPS_DAY", "200",
+				"MUTANT_TIMESTEPS_DAY","200",
+				"REPORT_TIMESTEPS_DAY", "timestepsMonthly.csv",
+				"DISP_HOURS", "8",
+				"GROWTH_HOURS","1",
+				//"DISP_SCALER","0",
+				//mutation test specific settings
+				"DEBUG", "true",
+				"GROWTH_RATE_DAY", "0.001",
+				"MUTATION", "0.001",
+				"MORTALITY_DAY", "0",
+				"INIT_LIN_SIZE", "100"
+				});
+		
+		//load 2
+		runSimulation(new String[]{"NUMNODES", "7", 
+				"SETTINGS", "testSettings/testNeutral.ini", 
+				"DURATION_DAY", "300", 
+				"FILE_LOAD", "testMutation/testMutation",
+				"LOAD_DAY", "200",
+				"FILE_OUT", "testMutation/testMutation",
+				"SEED","-1",
+				"SAVE_TIMESTEPS_DAY", "300",
+				"REPORT_TIMESTEPS_DAY", "timestepsMonthly.csv",
+				"DISP_HOURS", "8",
+				"GROWTH_HOURS","1",
+				//"DISP_SCALER","0",
+				//mutation test specific settings
+				"DEBUG", "true",
+				"GROWTH_RATE_DAY", "0.001",
+				"MUTATION", "0.001",
+				"MORTALITY_DAY", "0",
+				"INIT_LIN_SIZE", "100"
+				});
+	}
+	
+	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
+	@Test
+	void testNeutralAgainstBaseline() {
+		
+		//neutral
+		testSimulation("testSettings/testNeutral.ini", "testResults/testNeutralB", 
+				"testResults/testNeutral",  new String[] {});
 
 	}
 	
-	private void testOneSimulation(String settingsFile, String outFile, String[] otherArgs) {
+	/**Runs selective simulation and compares to previous run with same seed and same settings*/
+	@Test
+	void testSelectiveAgainstBaseline() {
+		
+		//selective
+		testSimulation("testSettings/testSelective.ini", "testResults/testSelectiveB", 
+				"testResults/testSelective", new String[] {});
+
+	}
+	
+//	TODO
+//	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
+//	@Test
+//	void testMutationAgainstBaseline() {
+//		
+//		//neutral
+//		testSimulation("testSettings/testMutation.ini", "testResults/testNeutralB", 
+//				"testResults/testNeutral",  new String[] {});
+//
+//	}
+//	
+//	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
+//	@Test
+//	void testMutationSelectiveBaseline() {
+//		
+//		//neutral
+//		testSimulation("testSettings/testMutationSelective.ini", "testResults/testNeutralB", 
+//				"testResults/testNeutral",  new String[] {});
+//
+//	}
+	
+	private void testSimulation(String settingsFile, String outFile, String benchmarkFile, String[] otherArgs) {
 		
 		
-		List<GridBoxForComparison> neutralNew = runSimulation(settingsFile, 7, 365,
-				"100", outFile,
-				false,
-				otherArgs);
-
-
-		
-		List<GridBoxForComparison> neutralLoad = runSimulation(settingsFile, 7, 365,
-				"100", outFile,
-				true,
-				otherArgs);
-
-		assertTrue(areEqual(neutralNew, neutralLoad));
-
 		//NOTE: Not guaranteed "wrong" won't equal - just added this test as crude method to quickly see if
 		//if I've messed the tests up so badly they aren't testing anything. Remove if needed.
 		//or, alternatively, aren't accidentally saving and reloading just loaded run
 		
-		List<GridBoxForComparison> neutralWrong = runSimulation(settingsFile, 7, 365,
-				"200", outFile,
-				false,
-				otherArgs);
-
-		
-		assertFalse(areEqual(neutralWrong, neutralLoad));
-
-		
-
+		int duration = 365;
 		
 		
+		//make baseline
+//		runSimulation(new String[]{"NUMNODES", "1", 
+//				"SETTINGS", settingsFile, 
+//				"DURATION_DAY", "" + duration, 
+//				"FILE_LOAD", "none",
+//				"FILE_OUT", benchmarkFile,
+//				"SEED","100",
+//				//TODO
+//				//test run saves output but for now will
+//				//have to be checked manually
+//				"SAVE_TIMESTEPS_DAY", "timesteps.csv",
+//				"DEBUG", "true",
+//				"CLUST_FILE", "clusters63861.csv"
+//				});
+//		
+		
+		
+		
+		//////////////////////////////////////////////////////////////////
+		//************************** SIMULATIONS ************************
+		/////////////////////////////////////////////////////////////////
+		
+		List<GridBoxForComparison> resultsNew = runSimulation(new String[]{"NUMNODES", "7", 
+				"SETTINGS", settingsFile, 
+				"DURATION_DAY", "" + duration, 
+				"FILE_LOAD", "none",
+				"FILE_OUT", outFile,
+				"SEED","100",
+				//TODO
+				//test run saves output but for now will
+				//have to be checked manually
+				"SAVE_TIMESTEPS_DAY", "timesteps.csv",
+				"DEBUG", "true",
+				"CLUST_FILE", "clusters6386.csv"
+				});
+		
+		List<GridBoxForComparison> resultsLoad = runSimulation(new String[]{"NUMNODES", "7", 
+				"SETTINGS", settingsFile, 
+				"DURATION_DAY", "" + duration, 
+				//loading benchmark run
+				"FILE_LOAD", benchmarkFile,
+				"LOAD_HOUR", "" + (duration * 24),
+				//so doesn't save
+				"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE,
+				"DEBUG", "true",
+				"CLUST_FILE", "clusters6386.csv"
+				});
+		
 
+		
+		assertTrue(areEqual(resultsNew, resultsLoad));
+		
+		//check output from new run correctly saved
+		
+		List<GridBoxForComparison> resultsNewLoad = runSimulation(new String[]{"NUMNODES", "7", 
+				"SETTINGS", settingsFile, 
+				"DURATION_DAY", "" + duration, 
+				//loading benchmark run
+				"FILE_LOAD", outFile,
+				"LOAD_HOUR", "" + (duration * 24),
+				//so doesn't save
+				"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE,
+				"DEBUG", "true"
+
+				});
+		
+		assertTrue(areEqual(resultsNew, resultsNewLoad));
+
+		
+		List<GridBoxForComparison> resultsWrong = runSimulation(new String[]{"NUMNODES", "7", 
+																			"SETTINGS", settingsFile, 
+																			"DURATION_DAY", "" + duration, 
+																			"SEED", "200",
+																			//so doesn't save
+																			"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE, 
+																			"DEBUG", "true"
+																	});
+		
+
+		
+		assertFalse(areEqual(resultsWrong, resultsLoad));		
+
+	}
+	
+	
+	
+	/**
+	 * 
+	 * @param settingsFile
+	 * @param numNodes
+	 * @param duration
+	 * @param seedString
+	 * @param fileName
+	 * @param loading
+	 * @param otherArgs
+	 * @return
+	 */
+	private List<GridBoxForComparison> runSimulation(String[] args) {
+		
+		
+		Runner.main(args);
+		
+		//did test run to completion?
+		assert(Runner.runState.day == Runner.settings.CTRL.DURATION_DAY);
+		
+		
+		List<GridBoxForComparison> results;
+		try {
+			results = Runner.getFinalResults();
+			//are all locations accounted for?
+			assert(results.size() == Runner.settings.NUM_BOXES);
+			return results;
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+				
+				
+		return null;
 
 	}
 	
@@ -88,77 +286,16 @@ public class TestJUnit {
 		Iterator<GridBoxForComparison> res1Iter = results1.iterator();
 		Iterator<GridBoxForComparison> res2Iter = results2.iterator();
 		
+		int i =0;
 		while(res1Iter.hasNext()) {
+			System.out.println("Comparing box " + i);
 			if(!res1Iter.next().equals( res2Iter.next())  )
 				return false;
+			i++;
 		}
 		return true;
-		
-		// TODO Auto-generated method stub
-		
 	}
 
-	/**
-	 * 
-	 * @param settingsFile
-	 * @param numNodes
-	 * @param duration
-	 * @param seedString
-	 * @param fileName
-	 * @param loading
-	 * @param otherArgs
-	 * @return
-	 */
-	private List<GridBoxForComparison> runSimulation(String settingsFile, int numNodes, int duration, 
-			String seedString, String fileName, boolean loading, String[] otherArgs) {
-		
-		
-		
-		//*************** PUT ARGS TOGETHER ********************
-		String[] argsStr = new String[otherArgs.length + 
-		                              (loading ? 14 : 10)];
-		argsStr[0] = "NUMNODES";
-		argsStr[1] = "" + numNodes;
-		argsStr[2] = "SETTINGS";
-		argsStr[3] = settingsFile;
-		argsStr[4] = "DURATION";
-		argsStr[5] = "" + duration;
-		argsStr[6] = "SEED";
-		argsStr[7] = seedString;
 
-		int nextIdx = 10;
-		
-		if(loading) {
-			argsStr[8] = "LOAD_FILE";
-			argsStr[9] = fileName;
-			argsStr[10] = "LOAD_DAY";
-			argsStr[11] = "" + duration;
-			argsStr[12] = "SAVE_TIMESTEPS_FILE";
-			argsStr[13] = "none"; //default i.e. don't save
-			
-			nextIdx = 14;
-		}
-		else {
-			argsStr[8] = "FILE_OUT";
-			argsStr[9] = fileName;
-		}
-		for(int i =0; i < otherArgs.length; i++) {
-			argsStr[nextIdx + i] = otherArgs[i];
-		}
-		//*******************************
-		
-		Runner.main(argsStr);
-		
-		assert(Runner.getDay() == duration);
-		
-		
-		List<GridBoxForComparison> results = Runner.getAllLocs().stream().map
-				(box -> new GridBoxForComparison(box)).distinct().collect(Collectors.toList());
-		
-		assert(results.size() == Settings.NUM_BOXES);
-		
-		return results;
-
-	}
 
 }

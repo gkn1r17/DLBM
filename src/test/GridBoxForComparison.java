@@ -6,11 +6,12 @@
 package test;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.TreeSet;
 
-import lbm.GridBox;
 import lineages.Lineage;
+import transportMatrix.GridBox;
 
 public class GridBoxForComparison implements Comparable<GridBoxForComparison>{
 
