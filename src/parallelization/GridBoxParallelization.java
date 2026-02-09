@@ -1,36 +1,41 @@
+/**Manages all distributed aspects of one GridBox
+ * 
+ */
+
 package parallelization;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+
+import config.ControlConfig;
+import config.SciConfig;
+import control.Runner;
+
+import java.util.HashSet;
 import java.util.Map.Entry;
 
-import dispersal.DispersalHandler;
-import dispersal.parallel.DispersalHandlerDistributed;
-import dispersal.parallel.DispersalHandlerParallel;
-import lbm.GridBox;
-import lbm.Settings;
 import lineages.Lineage;
 
-public class GridBoxParallelization<T_lin extends Lineage> {
+public class GridBoxParallelization {
 	 
-	 private final TreeMap<T_lin, Integer> localImmigrants = new TreeMap<T_lin, Integer>(); //immigrants from same cluster
-	 private final LinkedList<int[]> extImmmigrants = new LinkedList<int[]>(); //immigrants from different cluster
-	
+	//treemap because iterated in order
+	 private final TreeMap<Lineage, Integer> localImmigrants = new TreeMap<Lineage, Integer>(); //immigrants from same cluster
+	 
+	 private final LinkedList<long[]> extImmmigrants = new LinkedList<long[]>(); //immigrants from different cluster
+
 
 	/**Record when individual dispersed into this box ready for adding to population */
-	public void disperseToMe(T_lin s, int num) {
+	public void disperseToMe(Lineage s, int num) {
 		localImmigrants.compute(s, (k, v) -> v == null ? num : v + num);
 	}
 	
 
 	/**Integrate immigrants into population 
 	 * @throws Exception */
-	public int combineImmigrants(int oldSize, TreeSet<T_lin> population, HashSet<Integer> arrivedFrom, int id) throws Exception {
+	public int combineImmigrants(int oldSize, TreeSet<Lineage> population, HashSet<Integer> arrivedFrom, int id) throws Exception {
 		if(localImmigrants.isEmpty() && extImmmigrants.isEmpty())
 			return oldSize;
 		
@@ -38,31 +43,34 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 		
 		extImmmigrants.sort((a,b) -> 
 		{
-			if(a[0] == b[0])
-				return(a[1] - b[1]);
-			return (a[0] - b[0]);}
+			if(a[0] == b[0]) //same lineage
+				return(a[1] == b[1] ? 0 :
+									(a[1] > b[1] ? 1 : -1)
+						); //sort by quantity
+			return (a[0] > b[0] ? 1 : -1);}
 		
 		);
 		
 
 		///////////////////////////// LINEAGES ALREADY IN LOCAL POPULATION ///////////////////////
-		Iterator<int[]> extIter = extImmmigrants.iterator(); 
-		int[] nextExt = extImmmigrants.isEmpty() ? null : extIter.next();
+		Iterator<long[]> extIter = extImmmigrants.iterator(); 
+		long[] nextExt = extImmmigrants.isEmpty() ? null : extIter.next();
 		
-		int imTotal = localImmigrants.values().stream().mapToInt(i -> i).sum();
+		//int imTotal = localImmigrants.values().stream().mapToInt(i -> i).sum();
 		
 		
 		//// LOOP THROUGH POPULATION
-		for(T_lin lin : population) {
-			//if(localImmigrants.isEmpty() && extImmmigrants.isEmpty()) //if already added all immigrants
-				//return;
+		for(Lineage lin : population) {
+			if(localImmigrants.isEmpty() && extImmmigrants.isEmpty()) //if already added all immigrants
+				return size;
 			
 			
 			
 			/////// Internal/non distributed immigrants
 			//if this member of population has corresponding immigrant then combine them
 			Integer imNum = localImmigrants.remove(lin);
-			if(imNum != null) {
+			if(imNum != null && imNum > 0) {
+
 				lin.size += imNum; //update lineage size
 				if(!lin.isSunk()) //update total population size
 					size += imNum;
@@ -76,7 +84,7 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 			
 			
 			/////// external/distributed immigrants
-			int nextID = lin.getId(); //for distributed, as they arrived by MPI message has to be done by id number not actual lineage "object"
+			long nextID = lin.getId(); //for distributed, as they arrived by MPI message has to be done by id number not actual lineage "object"
 
 			while(nextExt != null && nextExt[0] <= nextID) {
 				if(nextExt[0] == nextID) {
@@ -102,9 +110,10 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 		while(!localImmigrants.isEmpty()) {
 			
 			//internal
-			Entry<T_lin, Integer> imEntry = localImmigrants.pollFirstEntry();
+			Entry<Lineage, Integer> imEntry = localImmigrants.pollFirstEntry();
 			Integer imNum = imEntry.getValue();
-			T_lin lin = imEntry.getKey();
+			Lineage lin = imEntry.getKey();
+			
 			if(!lin.isSunk()) {
 				size += imNum;
 				if(size < 0)
@@ -113,18 +122,18 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 			}
 			Lineage newLin = lin.copy(imNum);
 			
-			int nextID = newLin.getId();
-			if(Settings.TRACER_MODE)
-				arrivedFrom.add(nextID);
+			long nextID = newLin.getId();
+			if(Runner.settings.CTRL.TRACER_MODE)
+				arrivedFrom.add((int) nextID);
 			
-			population.add((T_lin) newLin);
+			population.add(newLin);
 			
 			//external (for cases where internal immigrant is also in external list)
 					
 			while(nextExt != null && nextExt[0] <= nextID) {
 				if(nextExt[0] == nextID) {
-					if(nextExt[1] > Settings.SINK_OFFSET)
-						nextExt[1] = nextExt[1] - Settings.SINK_OFFSET;
+					if(nextExt[1] > ControlConfig.SINK_OFFSET)
+						nextExt[1] = nextExt[1] - ControlConfig.SINK_OFFSET;
 	
 					
 					//add found external lin
@@ -146,22 +155,27 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 		
 		
 		//// EXTERNAL
+		Lineage newLin = null;
+		long lastID = 0;
 		while(!extImmmigrants.isEmpty()) {
 			
 			
-			//if(id == 1107)
-				//System.out.println("");
-
 			
-			int[] extIm = extImmmigrants.pollFirst();
+			long[] extIm = extImmmigrants.pollFirst();
 			
 			
-			if(Settings.TRACER_MODE)
-				arrivedFrom.add(extIm[1]);
+			if(Runner.settings.CTRL.TRACER_MODE)
+				arrivedFrom.add((int) extIm[1]);
 			
-			T_lin newLin = (T_lin) Lineage.makeNew(extIm);
-			population.add(newLin);
-			
+			//if two copies of same lineage arrived from different nodes
+			if(lastID == extIm[0]) {
+				newLin.size += extIm[1];
+			}
+			else {
+				newLin = Lineage.makeNewFromDist(extIm, Runner.runState.tempLins, null);
+				population.add(newLin);
+				lastID = extIm[0];
+			}
 			if(!newLin.isSunk()) {
 				size += extIm[1];
 				if(size < 0)
@@ -170,16 +184,13 @@ public class GridBoxParallelization<T_lin extends Lineage> {
 			}
 		}
 
-		
-		
-		
 		return size;
 	}
 	
 
-	public void addExt(int[] ext) {
+	public void addExt(long[] ls) {
 		
-		extImmmigrants.add(ext);
+		extImmmigrants.add(ls);
 		
 	}
 
