@@ -1,8 +1,9 @@
-function convertFiles(dirname, outName, experiment, timeStepsFile)
   %dirname = directory of csv files for converting into Matlab object
   %outName = where to save Matlab object
   %experiment = first part of filename of csv files e.g. "testSelectiveB_T09-02-2026 01-37-56"
   %timeStepsFile = path to csv timestamp file CSV's were saved to
+
+function convertFiles(dirname, outName, experiment, timeStepsFile)
 
     dirname
     experiment
