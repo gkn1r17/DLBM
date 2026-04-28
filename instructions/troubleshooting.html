@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Troubleshooting</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Troubleshooting</h1>
+    <p>Common failure modes and first checks</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="testing.html">Testing</a>
+    </section>
+
+    <section class="card">
+        <h2>Common Error Messages</h2>
+        <p>
+            If the program reports unknown settings, start by checking spelling and section placement in the settings file.
+            Configuration parsing is deliberately strict and will fail on leftover or misspelled keys.
+        </p>
+        <p>
+            If a load file cannot be found, verify both the base filename and whether the run expects a dated output suffix.
+            Restart logic can infer the latest matching run, but only when filenames follow the expected pattern.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Message Parsing (MPI) Errors</h2>
+        <p>
+            MPI-related failures are often caused by mismatched assumptions between local and distributed code paths,
+            or by changes that affect the structure of communicated data without updating both send and receive logic.
+            When debugging, reduce the problem first to a minimal run with a small number of nodes and simple settings.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Memory Errors</h2>
+        <p>
+            Memory pressure usually grows with box count, lineage count, mutation activity, and the amount of saved state.
+            Useful first responses include shortening the run, reducing save frequency, disabling optional outputs, or simplifying the test case.
+        </p>
+        <p>
+            When adding new lineage properties, treat memory use as part of the feature design rather than only a runtime concern.
+        </p>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

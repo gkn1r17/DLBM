@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Glossary</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        dt { font-weight: bold; margin-top: 1rem; }
+        dd { margin-left: 0; margin-top: 0.25rem; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Glossary</h1>
+    <p>Core DLBM terms used across the draft guide</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="extending.html">Extending</a>
+        <a href="analysis.html">Analysis</a>
+    </section>
+
+    <section class="card">
+        <h2>Key Terms</h2>
+        <dl>
+            <dt>Lineage</dt>
+            <dd>A tracked population identity represented in the lineage classes. Lineages are the main units of diversity in the model.</dd>
+
+            <dt>Neutral lineage</dt>
+            <dd>A lineage without environmental trait tracking beyond abundance and identity.</dd>
+
+            <dt>Selective lineage</dt>
+            <dd>A lineage with an environmental optimum, such as temperature preference, allowing environmental selection to act.</dd>
+
+            <dt>Grid box</dt>
+            <dd>A spatial location in the transport matrix. Each grid box stores local populations and receives dispersal from connected locations.</dd>
+
+            <dt>Transport matrix (TM)</dt>
+            <dd>The connectivity data describing movement among grid boxes. DLBM can load this from files or generate an artificial matrix for simplified cases.</dd>
+
+            <dt>Dispersal timestep</dt>
+            <dd>The interval, in hours, between transport events. This is controlled by <code>DISP_HOURS</code>.</dd>
+
+            <dt>Growth timestep</dt>
+            <dd>The interval, in hours, between growth and mortality updates. This is controlled by <code>GROWTH_HOURS</code>.</dd>
+
+            <dt>Checkpoint</dt>
+            <dd>An intermediate save file used to restart long runs when cluster time is limited.</dd>
+
+            <dt>Phylogeny output</dt>
+            <dd>Saved mutant history produced when mutation tracking is enabled and mutant save times are configured.</dd>
+
+            <dt>Controller node</dt>
+            <dd>The node responsible for central logging and some output coordination when running in distributed mode.</dd>
+        </dl>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

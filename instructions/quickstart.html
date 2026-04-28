@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Quick Start</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        pre { background: #eef3f7; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Quick Start</h1>
+    <p>First steps for launching a DLBM run</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="troubleshooting.html">Troubleshooting</a>
+        <a href="testing.html">Testing</a>
+    </section>
+
+    <section class="card">
+        <h2>System Requirements</h2>
+        <p>
+            The current run workflow is aimed at a Linux-based distributed cluster using SLURM for job submission.
+            The original quick start was written around the Iridis cluster at the University of Southampton.
+        </p>
+        <p>
+            You will need:
+        </p>
+        <p>
+            <strong>JavaSE-1.8 or higher</strong><br>
+            <strong>Linux</strong> for both cluster and local shell-based runs<br>
+            <strong>SLURM and MPI</strong> for distributed runs
+        </p>
+        <p>
+            A single-computer run is also possible if you use a one-machine cluster file and set the node count to 1.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Quick Start Steps</h2>
+        <p>
+            1. Move the run folder onto the target server or cluster.<br>
+            2. Create a settings file using <code>testSettings/testNeutral.ini</code> for a neutral simulation or <code>testSettings/testSelective.ini</code> for a selective simulation as a guide.<br>
+            3. Navigate to the run folder on the server.<br>
+            4. Choose the appropriate run command for either distributed SLURM execution or a local Linux run.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Running On A SLURM Cluster</h2>
+        <p>
+            Use the distributed launcher when running on a Linux cluster with SLURM and MPI available.
+            Adjust the jar name, output prefix, settings file, and node count to match your run.
+        </p>
+        <pre><code>sbatch runLBM.slurm LBMredone3.jar NUMNODES 2 SETTINGS testSettings/testMutation FILE_OUT phylo3/mut
+
+sbatch runLBM.slurm LBMredone3.jar NUMNODES 2 SETTINGS testSettings/testMutation FILE_OUT phylo3/mut FILE_LOAD phylo2/mut
+
+sbatch runLBM.slurm LBMredone3.jar NUMNODES 2 SETTINGS testSettings/testMutation FILE_OUT phylo3/mut FILE_LOAD phylo2/mut LOAD_DAY 365000</code></pre>
+        <p>
+            The <code>NUMNODES</code> value should match the number of top-level clusters or computers you intend to use.
+            Use command-line overrides to add or replace individual settings as needed.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Running Locally On Linux</h2>
+        <p>
+            For a local Linux run, use <code>runLBM.local.sh</code>, which is based on the SLURM launcher but runs the jar directly with <code>java</code>.
+            This script forces the local settings override <code>NUMNODES 1</code> and <code>CLUST_FILE clusters6386nodist.csv</code>.
+        </p>
+        <p>
+            Before the first run, make the script executable:
+        </p>
+        <pre><code>chmod +x instructions/runLBM.local.sh</code></pre>
+        <p>
+            Then call it with the jar path first, followed by the normal key-value run arguments:
+        </p>
+        <pre><code>bash instructions/runLBM.local.sh LBMredone3.jar SETTINGS testSettings/testMutation FILE_OUT phylo3/mut
+
+bash instructions/runLBM.local.sh LBMredone3.jar SETTINGS testSettings/testMutation FILE_OUT phylo3/mut FILE_LOAD phylo2/mut
+
+bash instructions/runLBM.local.sh LBMredone3.jar SETTINGS testSettings/testMutation FILE_OUT phylo3/mut FILE_LOAD phylo2/mut LOAD_DAY 365000</code></pre>
+        <p>
+            You do not need to pass <code>NUMNODES</code> or <code>CLUST_FILE</code> for the local script because it appends the local values automatically.
+            If you need different Java memory settings, set <code>JAVA_OPTS</code> before running the script.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Expected Output</h2>
+        <p>
+            After submission, the run produces output in the configured output folder together with run metadata.
+        </p>
+        <p>
+            <strong>Lineage abundance output</strong>: CSV files for each regular reporting interval<br>
+            <strong>Settings snapshot</strong>: a copy of the settings used for the run<br>
+            <strong>Seed marker files</strong>: empty files whose names record the random seeds used for each cluster<br>
+            <strong>SLURM log output</strong>: a <code>slurm-[job id].out</code> file in the run folder
+        </p>
+        <p>
+            By default, abundance summaries are written at regular intervals defined in the settings file.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Run-Time Notes</h2>
+        <p>
+            Change <code>SETTINGS testSettings/testMutation</code> as appropriate for the run you want to perform.
+            See <code>default.ini</code> for examples of the available settings, and add one-off overrides on the command line in pairs such as <code>DURATION_DAY 3650000</code>.
+        </p>
+    </section>
+
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

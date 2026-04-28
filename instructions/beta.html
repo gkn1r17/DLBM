@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Beta Features</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Untested (Beta) Functionality</h1>
+    <p>Proceed with caution</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="testing.html">Testing</a>
+        <a href="troubleshooting.html">Troubleshooting</a>
+    </section>
+
+    <section class="card">
+        <h2>Tracer Mode</h2>
+        <p>
+            Tracer mode is intended for special-purpose runs rather than standard production simulations.
+            It changes the assumptions behind the usual ecological dynamics, so outputs should be interpreted separately from normal runs.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Resting Spores</h2>
+        <p>
+            Dormancy-related behaviour, including size-refuge style logic, should be treated as experimental unless it has been validated for your exact scenario.
+            If you rely on it for published or production work, add explicit scenario tests and inspect the output carefully.
+        </p>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

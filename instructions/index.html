@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM User Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f6f8;
+            color: #222;
+            line-height: 1.6;
+        }
+
+        header {
+            background: #1f3b57;
+            color: white;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.2rem;
+        }
+
+        header p {
+            margin-top: 0.5rem;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        main {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .card h2 {
+            margin-top: 0;
+        }
+
+        .nav-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .nav-links a {
+            display: block;
+            padding: 1rem;
+            background: #e8eef5;
+            text-decoration: none;
+            color: #1f3b57;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            transition: background 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            background: #d4e1f0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Dispersive Lineage Based Model (DLBM)</h1>
+    <p>Draft User Guide</p>
+</header>
+
+<main>
+    <section class="card">
+        <h2>Dispersive Lineage Based Model (DLBM) Documentation</h2>
+    </section>
+
+    <section class="card">
+        <h2>User Guide Sections</h2>
+        <div class="nav-links">
+            <a href="quickstart.html">Quick Start</a>
+            <a href="glossary.html">Glossary</a>
+            <a href="configuration.html">Configuration</a>
+            <a href="extending.html">Extending Functionality</a>
+            <a href="analysis.html">Analysing Results</a>
+            <a href="testing.html">Testing</a>
+            <a href="troubleshooting.html">Troubleshooting</a>
+            <a href="beta.html">Beta Features</a>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>What This Covers</h2>
+        <p>
+            The pages describe the current concepts visible in the codebase, including configuration loading through
+            <code>config.Config</code>, run control in <code>control.Runner</code>, output generation in
+            <code>inputOutput.Output</code>, and regression testing under <code>src/test</code>.
+        </p>
+        <p>
+            Start with the Quick Start guide for the cluster submission workflow and system requirements, then move to
+            Configuration and Troubleshooting for run-specific setup details.
+        </p>
+    </section>
+</main>
+
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Configuration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        pre { background: #eef3f7; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Configuration</h1>
+    <p>Basic setup and transport matrix guidance</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="glossary.html">Glossary</a>
+        <a href="extending.html">Extending</a>
+        <a href="testing.html">Testing</a>
+    </section>
+
+    <section class="card">
+        <h2>Basic Configuration</h2>
+        <p>
+            DLBM loads settings through <code>config.Config</code>, which combines scientific settings, control settings,
+            and optional artificial transport-matrix settings. Settings can come from default files, a supplied settings file,
+            or command-line overrides.
+        </p>
+        <p>
+            In practice, the main groups you are likely to edit are:
+        </p>
+        <p>
+            <strong>Time stepping</strong>: <code>DURATION_DAY</code>, <code>GROWTH_HOURS</code>, <code>DISP_HOURS</code><br>
+            <strong>Population and ecology</strong>: <code>K</code>, <code>INIT_LIN_SIZE</code>, <code>GROWTH_RATE_DAY</code>, <code>MORTALITY_DAY</code>, <code>MUTATION</code><br>
+            <strong>Input/output</strong>: <code>FILE_OUT</code>, <code>FILE_LOAD</code>, <code>SAVE_TIMESTEPS_DAY</code>, <code>REPORT_TIMESTEPS_DAY</code>, <code>MUTANT_TIMESTEPS_DAY</code><br>
+            <strong>Parallelization</strong>: <code>CLUST_FILE</code> and <code>NUMNODES</code>
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Typical Run Pattern</h2>
+        <pre><code>NUMNODES 1
+SETTINGS testSettings/testNeutral.ini
+DURATION_DAY 365
+FILE_OUT testResults/testNeutral
+SEED 100</code></pre>
+        <p>
+            Command-line values take precedence over values from the settings file. Unknown settings are rejected, which helps catch spelling mistakes early.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Adding a New Transport Matrix</h2>
+        <p>
+            A new transport matrix usually requires three coordinated inputs:
+        </p>
+        <p>
+            <strong>Connectivity data</strong> via <code>TM_FILE</code><br>
+            <strong>Relative box volumes</strong> via <code>VOL_FILE</code><br>
+            <strong>Environmental forcing</strong> via <code>TEMP_FILE</code> when selection is enabled
+        </p>
+        <p>
+            The configured number of boxes should match the transport data unless you are using the artificial matrix builder.
+            If you want a simple idealised system instead, the artificial TM pathway under
+            <code>transportMatrix.artificialTM</code> can be used to generate locations dynamically.
+        </p>
+        <p>
+            After adding a new matrix, it is worth running a short simulation first to confirm that loading, box counts,
+            and output filenames all look correct before moving to a longer cluster run.
+        </p>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

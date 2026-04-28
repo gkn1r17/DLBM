@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Extending Functionality</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Extending Functionality</h1>
+    <p>Developer-facing notes for modifying model behaviour</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="analysis.html">Analysis</a>
+        <a href="testing.html">Testing</a>
+    </section>
+
+    <section class="card">
+        <h2>Environmental Selection</h2>
+        <h3>Changing the selection function</h3>
+        <p>
+            Selection-related settings live in <code>SciConfig</code>, including <code>W</code>, <code>TEMP_FILE</code>,
+            <code>TEMP_START_RANGE</code>, and <code>TEMP_MUTINTV</code>. If you want to alter how fitness depends on environment,
+            start by tracing the selective lineage and grid-box logic that uses lineage temperature optima.
+        </p>
+        <h3>Adding additional selection functions</h3>
+        <p>
+            A practical approach is to introduce a new strategy or branch alongside the existing selective logic rather than modifying
+            every call site at once. Keep the configuration switch explicit so runs remain reproducible.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Dispersal</h2>
+        <p>
+            Dispersal behaviour is centered in the <code>dispersal</code> package and tied to the transport matrix representation.
+            Changes here can affect both local correctness and distributed communication, so small validation runs are recommended first.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Mutation</h2>
+        <p>
+            Mutation rate is configured through <code>MUTATION</code>. Mutation-related output and debug checks are coordinated through
+            <code>inputOutput.Output</code> and the phylogeny utilities. If you change mutation logic, also review mutant save timing and debug tooling.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Growth / Mortality</h2>
+        <p>
+            Growth and mortality are derived from daily rates and converted internally to timestep-scale values in <code>Config</code>.
+            Any changes should preserve consistency between the configured daily rates and the timestep sizes.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Initialisation</h2>
+        <p>
+            Initial populations are either loaded from previous output or created from the configured initial state.
+            The setup flow in <code>Runner</code> shows where new initialisation pathways can be inserted safely.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Additional Dimensions of Diversity</h2>
+        <p>
+            To add extra tracked traits such as size class or functional group, plan the change across lineage storage,
+            mutation rules, save/load formats, and comparison tests. This type of extension usually touches both in-memory structures and file formats.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Output and Metrics</h2>
+        <p>
+            Output currently includes full state saves, abridged time series, checkpoint files, and optional mutant/phylogeny information.
+            New metrics are often easiest to add first to the reporting CSV path and then, if useful, to full save output.
+        </p>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>

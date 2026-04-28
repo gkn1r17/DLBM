@@ -1,0 +1,64 @@
+########## PLEASE NOTE: THIS IS A WORK IN PROGRESS - IT IS FUNCTIONAL BUT THE CODE IS PRESENTED "AS IS" ##########
+
+************** Dispersed Lineage Based Model **************** Geoff Neumann, 2024
+
+################################ INSTRUCTIONS FOLDER
+
+Open `index.html` in this folder to browse the draft documentation set.
+
+Quick start guidance is now available in `quickstart.html`, including the current system requirements and the basic SLURM submission workflow.
+
+################################ QUICK START
+
+To run on distributed cluster (this is written for Iridis cluster at Southampton Uni running on Linux with SLURM architecture):
+
+Move run folder onto server
+
+Create settings (.ini) file using testSettings/testNeutral.ini (neutral simulation) or testSettings/testSelective.ini (selective simulation) as a guide
+
+Navigate to run folder on server
+
+Submit jobs with below command (adjust for number of nodes and path to settings file as required)
+
+sbatch runLBM.slurm LBM.jar NUMNODES 7 SETTINGS testSettings/testSelective.ini
+
+Output: In output folder:
+
+Abundance of every lineage in every location - CSV for each regular time interval (default = 100 years, see settings file for details)
+Copy of settings
+Empty file beginning "seed" with name providing random seed used for each cluster in case need to recreate results In run folder (outside output file)
+SLURM output file: Total number of lineages in every location at regular time intervals (default = 1 year, see settings) in (will add more details when uploaded R processing code).
+
+
+################################
+
+Troubleshooting: Output while running will appear in the run folder a file "slurm-[job id].out" where [job id] is a numeric code that you will see printed to console after you start each job. If jobs end immediately and you see the below error (with different numbers) in the output file then this appears to be a random error with slurm (or the Iridis cluster?) - just rerun the job. It will probably be necessary to rerun each job multiple times before one successfully runs.
+
+red6,069: Starting fmpjd in port 11030...is not possible! (Host red6,069 is unknown) red6,070: Starting fmpjd in port 11030...is not possible! (Host red6,070 is unknown)
+
+################################ DEVELOPMENT ADVICE
+
+(this section will contain advice on navigating the code - work in progress)
+
+The classes you may need to change include: lineages.Lineage - growth, mortality lineages.SelLineage - environmental selection lbm.GridBox - represents a location; modify to change dispersal (dispBinomial(...) ), the overall eco+dispersal loop (growDieAll(...) ), population initialisation (initPop(...) ), topt distribution (initIDSizeTemp(...) ). lbm.Settings - to add new settings
+
+lbm.Runner contains code to launch the model and manage parallization so will generally be ignored when changing model behaviour
+
+################################ CLUSTERING/ PARALLELIZATION - note this is just for computational efficiency w/ no effect on actual model behaviour
+
+If using a new TM or running on a new distributed cluster if will be necessary to change the distribution/parallelization configuration. To do this:
+
+Add "CLUST_FILE:[clusterfile]" to your settings file - pointing to your new cluster file (
+
+modify the following two lines in runLBM.slurm. "nodes" should be changed from 2 to the number of computers you wish to run across, which should be equal to the number of 2nd level clusters in your cluster file "cpus-per-task" should be the maximum number of CPUs available on each computer which, if you've set up your cluster file optimally, should ideally be similar to the number of 1st level clusters in each 2nd level cluster.
+
+#SBATCH --nodes=2 #SBATCH --cpus-per-task=192
+
+Run, ensuring you change the number after "NUMNODES" to your number of computers/top level clusters
+
+To create a new cluster file:
+
+Each line is a location, ordered by index in the TM.
+The first column is locations with a high degree of movement between them (1st level clusters). Each will be housed on a separate core.
+The second column organizes 1st level clusters into a small number of large 2nd level clusters with very little movement between them. Each will be housed on a separate computer. (I can at some point upload an R script for producing both types of clusters)
+Note: When running on a single compter simply set all second level clusters to "0", you can even fully serialize application by setting all first level clusters to "0" to. The one computer cluster file for the UVic TM is called "nondist6386.csv" and is available in this folder, simply add CLUST_FILE:nondist6386.csv to settings and set NUMNODES in your command argument and nodes in runLBM.slurm to 1.
