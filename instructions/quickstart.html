@@ -54,7 +54,7 @@
             7. Once run has finished collate results using "Collating" (below) commands.<br>
         </p>
         <p>
-            To run a simulation with different parameters, either:
+            To run a simulation with different parameters, either:<br>
             1. create a new settings .ini file.<br>
             - use default.ini, testSettings/testSelective.ini and testsettings/testNeutral.ini as a guide.<br>
             - change SETTINGS [your_settings_file] in run command, whether running locally or on cluster.<br>
@@ -86,8 +86,8 @@
         <h2>Running from checkpoint pickup</h2>
         <p>
             Add FILE_LOAD to the command line or ini file. This example is for SLURM but same principle for running locally. <br>
-            Automatically the last complete pickup file, these are output csv files ending in CHKA or CHKB will be loaded. <br>
-            You can see what day this corresponds to at the top of these files. <br>
+            Automatically the last complete pickup file (output csv files ending in CHKA or CHKB) will be loaded. <br>
+            You can see what day these files correspond to at the top of each file. <br>
             To load a specific day / hour add e.g. "LOAD_HOUR 365" or "LOAD_HOUR 365h8" (if loading a timestep part way through the day, in this example 8 hours in)<br>
         </p>
         <pre><code>sbatch runLBM.slurm LBM.jar NUMNODES 2 SETTINGS testSettings/testMutation FILE_OUT phylo3/mut CLUST_FILE clusters6386.csv FILE_LOAD phylo3/mut </code></pre>
@@ -106,6 +106,8 @@
         <pre><code>sh ./runConvert1.sh testSelective results2026/W=6dispK1000M0 seasW6_T15-04-2026 21-37-43</code></pre>
         <pre><code>sbatch runConvert2.slurm results2026 W=6dispK1000M0</code></pre>
     </section>
+
+
 
 </main>
 <footer>
