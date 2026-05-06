@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Extending Functionality</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Extending Functionality</h1>
+    <p>Developer-facing notes for modifying model behaviour</p>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="analysis.html">Analysis</a>
+        <a href="testing.html">Testing</a>
+    </section>
+
+    <section class="card">
+        <h2>Environmental Selection</h2>
+        <h3>Changing the selection function</h3>
+        <pre>
+            <code>lineages.SelLineage.tempFunc(...)</code>
+        </pre>
+    </section>
+
+    <section class="card">
+        <h2>Dispersal</h2>
+        <p>
+            <pre>
+                <code>transportMatrix.GridBox.dispBinomial(...)</code>
+            </pre>
+            numToEach[...] stores numbers moving from each potential sink from this source (not counting elements that don't move i.e. source==sink). <br>
+            </p>
+    </section>
+
+
+    <section class="card">
+        <h2>Initialisation / Initialising Environmental Selection</h2>
+        <p>
+            The following method controls population size, lineage IDs and population of each lineage. It also controls the distribution of t_opt across the lineages "###TEMPERATURE STUFF"
+            <pre>
+                <code>transportMatrix.GridBox.initIDSizeTemp(...)</code>
+            </pre>
+            The following method actually creates the lineages and initialises carrying capacity.
+            <pre>
+                <code>transportMatrix.GridBox.initPop(...)</code>
+            </pre>
+
+        </p>
+    </section>
+
+        <section class="card">
+        <h2>Main Ecology Loop</h2>
+        <p>
+            Controls growth/mortality for each lineage in GridBox
+            <pre>
+                <code>transportMatrix.GridBox.growDieMutateAll(...)</code>
+            </pre>
+        </p>
+    </section>
+
+        </section>
+
+        <section class="card">
+        <h2>Growth / Mortality / Mutation</h2>
+        <p>
+            <pre>
+                <code>lineages.Lineage.growDie(...)</code>
+            </pre>
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Additional Dimensions of Diversity</h2>
+        <p>
+            New types of Lineage (associated with new information e.g. size) can be added as new classes in the lineages package extending <code>Lineage</code> (see <code>SelLineage</code>) as an example. <br>
+            For initialisation change <code>transportMatrix.GridBox.initIDSizeTemp(...)</code> and <code>transportMatrix.GridBox.initPop(...)</code> <br>
+            Change <code>[My-new-lineage].getDetails(...)</code> to output new information. This will add column to output CSV files.<br>
+            Add to <code>Lineage.makeNew(...)</code><br>
+            Adjust <code>increment</code> in <code>GridBox.addLoadedPop(...)</code> to correctly load new information.<br>
+            If running distributed modify <code>decompileMPImessage</code> <code>compileMPImessage</code> (and if testing locally these methods + "test") so that new information is correctly tranferred between nodes and <code>Lineage.makeNewFromDist(...)</code><br>
+            For storing the new information it can either be done in the new Lineage class and will need to be copied with every dispersal or follow the example of temperature with <code>RunState.tempLins</code> to save memory.
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Adding new Configuration settings</h2>
+        <p>
+            Scientific settings should be added to <code>config.SciConfig</code> <br>
+            Control settings should be added to <code>config.ControlConfig</code> <br>
+            Settings dependent on both scientific and control settings should be added directly to <code>config.Config</code> <br>
+        </p>
+    </section>
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>
