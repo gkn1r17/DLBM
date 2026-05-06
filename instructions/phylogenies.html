@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DLBM Phylogenies</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background-color: #f4f6f8; color: #222; line-height: 1.6; }
+        header { background: #1f3b57; color: white; padding: 2rem 1rem; text-align: center; }
+        main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .card h2, .card h3 { margin-top: 0; }
+        .topnav a { color: #1f3b57; text-decoration: none; font-weight: bold; margin-right: 1rem; }
+        code { background: #eef3f7; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        footer { text-align: center; padding: 1.5rem; font-size: 0.9rem; color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Phylogenies</h1>
+</header>
+<main>
+    <section class="card topnav">
+        <a href="index.html">Home</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="testing.html">Testing</a>
+        <a href="troubleshooting.html">Troubleshooting</a>
+    </section>
+
+    <section class="card">
+        <h2>Step 1: Producing phylogeny raw data during run</h2>
+        <p>
+            Add <code>MUTANT_TIMESTEPS_DAY timestepsYearly.csv</code> to the command line when running your simulation.<br> 
+            This will export and flush the information needed to build a phylogeny to the subfolder phylogenies every year (you can substitute other timestep csv files with other intervals but it doesn't affect results and this seems to work fine for performance).<br>
+            Phylogenies are saved (and exported in a Java compressed format) with information [parent, number_of_children, time] for each location and each mutation.<br>
+            Each mutation spawns a new child lineage.<br>
+            Children ID and location ID can easily be deduced as the ID's of new lineages increment by 1 each time, which enables a complete phylogeny to be constructed offline (See below) even though it is stored in a compressed format during the simulation<br>
+            This is done for efficiency reasons because, as phylogenies are only traced back for surviving lineages, most new lineages produced will never need to be reconstructed in this way.<br>
+            Birth time is also calculated offline to the granularity specified in e.g. <code>REPORT_TIMESTEPS_DAY report10Days.csv</code> (this example = 10 days).
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>Step 2: Phylogeny offline collation</h2>
+        <p>
+            The Java method responsible for offline phylogeny collation is <code>inputOutput.CollatePhylogenies.main(...) </code><br>
+            Will take several hours for K=1000 and around 6000 grid boxes.<br>
+            Can be stopped early, if so will have collated up up to a particular time in the past (i.e. not to beginning of simulation).<br>
+            This example is for collating at year 10000, can also collate starting at earlier years, which will also take less time and may be possible with higher K.<br>
+            These instructions are for Iridis/(SLURM based cluster) and will need to be adapted for local Linux/Windows environment. runPhylo.slurm will also need to be adapted.<br>
+            1. Make sure runPhylo.slurm and collatePhylo.jar are in the run folder<br>
+            2. Run collation with the command below. Modify as required:<br>
+            - "3650000" will trace back the phylogeny for every lineage alive at day 3650000 (year 10000) and can be changed to earlier year to trace back phylogeny from earlier year.
+            - "280" is just a parallelisation parameter optimised for the number of cores available. For more powerful servers shouldn't need changing.<br>
+            - "FILE_LOAD phylo3/mut_T11-04-2026*18-34-53" should be the path to the run for which phylogeny is being collated and complete file name including timestamp with space replaced with "*"<br>
+            - Other parameters should match parameters which with run was produced.<br>
+            3. Output printed to standard out (temp soluting should probably be fixed at some point).<br>
+            - On Iridis the destination of standard out can be changed in runPhylo.slurm by addeding e.g. <code>#SBATCH --output=my_phylo.out</code>, otherwise will output to slurm-[job number].out<br>
+            4. When the run has finished output will need to processed into .mat object as follows:<br>
+            - convert to csv<br>
+            - remove lines except those starting with "phylo"<br>
+            - run collatePhylo2.m
+            <pre>
+                <code>
+                     sbatch runPhylo.slurm 280 3650000 NUMNODES 2 SETTINGS testSettings/testMutation FILE_OUT mutPhylo/mut DURATION_DAY 3650000 DISP_SCALER 1 SEED 0 MUTANT_TIMESTEPS_DAY timestepsYearly.csv SAVE_TIMESTEPS_DAY timestepsYearly.csv REPORT_TIMESTEPS_DAY report10Days.csv FILE_LOAD phylo3/mut_T11-04-2026*18-34-53 LOAD_DAY 3650000 TEMP_FILE none CLUST_FILE clusters6386x.csv
+                </code>
+            </pre>
+        </p>
+    </section>
+
+</main>
+<footer>
+    &copy; 2026 Geoffrey Neumann | DLBM Draft Documentation
+</footer>
+</body>
+</html>
