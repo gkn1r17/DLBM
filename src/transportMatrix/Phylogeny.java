@@ -40,13 +40,8 @@ public class Phylogeny implements Serializable{
 	
 	private final ArrayList<PhyloEntry> parentNumChildren = new ArrayList<PhyloEntry>();
 	private final int gridBoxID;
-	/**starting mutant ID in this grid box - each further mutant increments from here*/
-	private final long minID;
-	/**highest ordinarily permissable mutant ID, 
-	 * if higher are needed opens up new "slot" for ID's using settings.MAX_MUTANT_ID */
-	private final long maxID;
-	/**incrementing current mutant ID */
 	private long curID;
+
 	
 	/**Record of parent ID of each new mutant lineage
 	 * (Lineages present at start are represented with parent = -1)
@@ -58,13 +53,13 @@ public class Phylogeny implements Serializable{
 		private static final long serialVersionUID = -6648630815909640434L;
 		private final long parentID;
 		private final int numChildren;
-		private final long startHour;
+		//private final long startHour;
 
 		
-		public PhyloEntry(long parentID, int numChildren, long startHour) {
+		public PhyloEntry(long parentID, int numChildren) { //, long startHour) {
 			this.parentID = parentID;
 			this.numChildren = numChildren;
-			this.startHour = startHour;
+			//this.startHour = startHour;
 		}
 
 		@Override
@@ -87,14 +82,8 @@ public class Phylogeny implements Serializable{
 	public Phylogeny(int gridBoxID, long curID) {
 		this.gridBoxID = gridBoxID;
 		this.curID = curID;
-		this.minID = gridBoxID * Runner.settings.MUTANT_OFFSET;
-		this.maxID = minID + Runner.settings.MUTANT_OFFSET;
+	}
 
-	}
-	
-	public void setCurID(long curID) {
-		this.curID = curID;
-	}
 	
 	/**At start of simulation add initial populations as "mutants"
 	 * with parent = -1
@@ -102,8 +91,9 @@ public class Phylogeny implements Serializable{
 	 * @param numLins size of starting population 
 	 */
 	public void addInitialPopulation(int numLins) {
-		curID += numLins;
-		parentNumChildren.add(new PhyloEntry(-1, numLins, 0 ));
+		curID += numLins - 1;
+		if(Runner.settings.mutantTimestepsArr != null)
+			parentNumChildren.add(new PhyloEntry(-1, numLins)); //, 0 ));
 	}
 	
 	/**Combine two phylogenies
@@ -127,14 +117,16 @@ public class Phylogeny implements Serializable{
 
 	public LongStream streamAllChildren() {
 		
-		//TODO add ID offset;
-		
 		ArrayList<Long> childIDs = new ArrayList<Long>();
 		long id = curID;
 		for(PhyloEntry parNumCh : parentNumChildren.reversed()) {
-			for(int i = 0; i < parNumCh.numChildren; i++) 
-				childIDs.add(id - 1);
-			id -= parNumCh.numChildren;
+			for(int i = 0; i < parNumCh.numChildren; i++) { 
+				childIDs.add(id);
+				if(id % Runner.settings.mutantOffset == 0)
+					id = id - Runner.settings.maxMutantOffset + Runner.settings.mutantOffset;				
+				id--;
+				
+			}
 
 		}
 		
@@ -193,35 +185,35 @@ public class Phylogeny implements Serializable{
 	
 	}
 	
-	public static long[] loadMutants(String inFile, ArrayList<GridBox> boxes, boolean loadAll, long loadHour) throws Exception {
+	/**JUST FOR TESTING FOR NOW
+	 * 
+	 * @param inDir
+	 * @param inFile
+	 * @param boxes
+	 * @param loadAll
+	 * @param loadHour
+	 * @return
+	 * @throws Exception
+	 */
+	public static long[] loadMutants(String inDir, String inFile, ArrayList<GridBox> boxes, boolean loadAll, long loadHour) throws Exception {
 		int day = (int) Math.floor(loadHour / 24.0);
 		int hourOfDay = (int) ((loadHour /24.0) - day);
 		String hourDayStr = day + "hr" + hourOfDay;
-		String fileName = inFile.replace(Runner.settings.LOAD_DIR + "/", "");
-		String maxFile = Runner.settings.LOAD_DIR + "/phylogeny/" + fileName + "_Phy_D" + hourDayStr + "_N" + Runner.runParallel.getRank() + ".ser";
+		String fileName = inFile.replace(inDir + "/", "");
+		String maxFile = inDir + "/phylogeny/" + fileName + "_Phy_D" + hourDayStr + "_N" + Runner.runParallel.getRank() + ".ser";
 		
-		if(loadAll    && Runner.settings.CTRL.DEEP_DEBUG_MUTANTS) //TODO - setting not properly set up
-			loadAllMutants(Runner.settings.LOAD_DIR + "/phylogeny/" + fileName, boxes, loadHour);
+		if(loadAll) 
+			loadAllMutants(inDir + "/phylogeny/" + fileName, boxes, loadHour);
 
-		long[] maxInts = new long[Runner.settings.NUM_BOXES];
+		
 
 		
 		if(!new File(maxFile).exists()    ) {
-			System.out.println("WARNING: No phylogeny files found");
-			long maxLin = 0;
-			for(GridBox box: boxes) {
-				maxLin = Math.max(maxLin, box.streamLinNums().max().getAsLong());
-			}
-//			maxLin = 208305326296L;
-			maxLin++;
-			for(GridBox box: boxes) {
-				maxInts[box.id] = maxLin + (box.id * Runner.settings.MUTANT_OFFSET);
-			}
-
-			
-			return maxInts;
+			throw new Exception("No phylogeny files found");
 		}
 		
+		
+		long[] maxInts = new long[Runner.settings.numBoxes];
         FileInputStream fileIn = new FileInputStream(maxFile);
         ObjectInputStream in = new ObjectInputStream(fileIn);
         HashMap<Integer, Phylogeny> combinedMutants = (HashMap<Integer, Phylogeny>) in.readObject();
@@ -232,78 +224,81 @@ public class Phylogeny implements Serializable{
         //get ID for creating next mutant in each box
         for(Entry<Integer, Phylogeny> mutEntry : combinedMutants.entrySet()) {
         	Phylogeny mut = mutEntry.getValue();
-        	maxInts[mut.gridBoxID] = mut.curID + 1;
+        	maxInts[mut.gridBoxID] = mut.curID;
         }
 
 		return maxInts;
+
 	}
 
 	private static boolean loadAllMutants(String fileName, ArrayList<GridBox> boxes, long loadHour) throws IOException, ClassNotFoundException {
-		//FIXME
-		throw new UnsupportedOperationException("TODO loadAllMutants not correctly set up with \"long\" mutant ids");
 		
-//		String inFile = new File(fileName).getName();
-//		String suffix = "_N" + Runner.runParallel.getRank() + ".ser";
-//		
-//		String Runner.settings.LOAD_DIR = fileName.replaceAll(inFile, "");
-//		
-//		
-//		String filePattern = inFile + "_Phy_D[0-9]+(hr[0-9]+)?" + suffix;
-//		Pattern pattern = Pattern.compile(filePattern, Pattern.CASE_INSENSITIVE);
-//		
-//		ArrayList<String> files = Stream.of(new File(Runner.settings.LOAD_DIR).listFiles())
-//					      .filter(file -> !file.isDirectory())
-//					      .map(File::getName)
-//					      .filter(f -> pattern.matcher(f).find())
-//					      .collect(Collectors.toCollection(ArrayList::new));
-//		
-//		
-//		
-//		if(files.size() == 0) {
-//			System.err.println("WARNING: no phylogeny to load found");
-//			return false;
-//		}
-//		
-//		
-//		for(String file : files) {
-//			String time = file.replace(inFile + "_Phy_D", "").replace(suffix, "");
-//			String[] hours = time.split("hr");
-//			long hour = Long.parseLong(hours[0]) * 24 + 
-//					(hours.length == 1 ?
-//					0 :
-//					Integer.parseInt(hours[1]));
-//			
-//			//load whole file if want a complete phylogeny (currently just used for debugging)
-//			if(hour <= loadHour) {
-//	            FileInputStream fileIn = new FileInputStream(Runner.settings.LOAD_DIR + "/" + file);
-//	            ObjectInputStream in = new ObjectInputStream(fileIn);
-//	            HashMap<Integer, Phylogeny> combinedMutants = (HashMap<Integer, Phylogeny>) in.readObject();
-//	            
-//	            in.close();
-//	            fileIn.close();
-//	            
-//	            for(Entry<Integer, Phylogeny> mutEntry : combinedMutants.entrySet()) {
-//	            	cells.get(mutEntry.getKey()).setPhylogeny(mutEntry.getValue());
-//	            	
-//	            }
-//	            System.out.println("loaded");
-//			}
-//		}
-//		
-//		return true;
+		String inFile = new File(fileName).getName();
+		String suffix = "_N" + Runner.runParallel.getRank() + ".ser";
+		String dirName = fileName.replace(inFile, "");
+		
+		
+		String filePattern = inFile + "_Phy_D[0-9]+(hr[0-9]+)?" + suffix;
+		Pattern pattern = Pattern.compile(filePattern, Pattern.CASE_INSENSITIVE);
+		
+		ArrayList<String> files = Stream.of(new File(dirName).listFiles())
+					      .filter(file -> !file.isDirectory())
+					      .map(File::getName)
+					      .filter(f -> pattern.matcher(f).find())
+					      .collect(Collectors.toCollection(ArrayList::new));
+		
+		
+		
+		if(files.size() == 0) {
+			System.err.println("WARNING: no phylogeny to load found");
+			return false;
+		}
+		
+		
+		for(String file : files) {
+			String time = file.replace(inFile + "_Phy_D", "").replace(suffix, "");
+			String[] hours = time.split("hr");
+			long hour = Long.parseLong(hours[0]) * 24 + 
+					(hours.length == 1 ?
+					0 :
+					Integer.parseInt(hours[1]));
+			
+			//load whole file if want a complete phylogeny (currently just used for debugging)
+			if(hour <= loadHour) {
+	            FileInputStream fileIn = new FileInputStream(dirName + "/" + file);
+	            ObjectInputStream in = new ObjectInputStream(fileIn);
+	            HashMap<Integer, Phylogeny> combinedMutants = (HashMap<Integer, Phylogeny>) in.readObject();
+	            
+	            in.close();
+	            fileIn.close();
+	            
+	            for(Entry<Integer, Phylogeny> mutEntry : combinedMutants.entrySet()) {
+	            	boxes.get(mutEntry.getKey()).mergePhylogeny(mutEntry.getValue());
+	            	
+	            }
+	            System.out.println("loaded");
+			}
+		}
+		
+		return true;
 	}
 
 	public void addMutants(long id, int numMuts, long hour) {
-		parentNumChildren.add(new PhyloEntry(id, numMuts, hour));		
+		parentNumChildren.add(new PhyloEntry(id, numMuts));//, hour));		
 	}
 
+	/**Increments and returns curID and handles increasing curID to ensure no duplicate IDs
+	 * 
+	 * @return curID
+	 */
 	public long getNextMutantCounter() {
 		//adjust counter for next mutant
 		curID++;
 		
+		
 		//if curID becomes too high skip all indices that could've been created in another box
-		if(curID % maxID == 0) {
-			curID += (Runner.settings.CTRL.MUTANT_MAX_OFFSET - Runner.settings.MUTANT_OFFSET);
+		if(curID % Runner.settings.mutantOffset == 0) {
+			curID = curID + Runner.settings.maxMutantOffset - Runner.settings.mutantOffset;
 			if(gridBoxID == 0) //for now only print for grid box 0 else too many messages
 				System.out.println("Re-offsetting lineage ID's for gridBox= " + gridBoxID + "(new ID= " + curID + ")" );
 		}
@@ -315,6 +310,48 @@ public class Phylogeny implements Serializable{
 	public long getSize() {
 		// TODO Auto-generated method stub
 		return parentNumChildren.size();
+	}
+
+	/**
+	 * 
+	 * @return curID
+	 */
+	long getCurID() {
+		return curID;
+	}
+
+
+	void setCurID(long curID) {
+		this.curID = curID;
+		
+	}
+
+
+	/**
+	 * 
+	 * @param lin
+	 * @return
+	 */
+	public long findLin(long lin) {
+		if(lin > curID)
+			return -1; //can't find. this phylogeny too early (ID too high)
+		
+		long id = curID;
+		
+		
+		//iterate in reverse order (from most recent to oldest)
+		for(int p =0; p < parentNumChildren.size(); p++  ) {
+			
+			PhyloEntry phylo = parentNumChildren.get(parentNumChildren.size() - p - 1);
+			for(int i =0 ; i < phylo.numChildren; i++) {
+				if(lin == id)
+					return phylo.parentID;
+				if(id % Runner.settings.mutantOffset == 0)
+					id = id - Runner.settings.maxMutantOffset + Runner.settings.mutantOffset;				
+				id--;
+			}
+		}	
+		return -2; //can't find. this phylogeny too late (ID too low)
 	}
 
 

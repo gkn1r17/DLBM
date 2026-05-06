@@ -27,10 +27,11 @@ import lineages.SelLineage;
 import mpi.MPI;
 import mpi.Status;
 import transportMatrix.GridBox;
+import transportMatrix.Phylogeny;
 
 public class RunnerParallelization {
 	
-	public static final boolean debugSerial = false;
+	public static final boolean DEBUG_SERIAL = false;
 
 
 	
@@ -90,7 +91,7 @@ public class RunnerParallelization {
 			nodes.get(0).receiveMsg(); //receiving dispersed individuals afterwards to avoid concurrency issues
 		}
 		else {
-			if(debugSerial) {
+			if(DEBUG_SERIAL) {
 				nodes.stream().forEach(nd -> nd.runEcoDispersalLocal(tempTidx,  hour)); //ecological actions + dispersal
 				for(Node nd : nodes) {
 					for(Entry<Integer, ArrayList<DispersalHandlerDistributed>> dist : nd.getDistMovs().entrySet()) {
@@ -131,7 +132,7 @@ public class RunnerParallelization {
 		int[][] boxClustNodes = allocateClusters(boxs, rd);
 
 		
-		GridBox[] activeboxs = new GridBox[Runner.settings.NUM_BOXES];
+		GridBox[] activeboxs = new GridBox[Runner.settings.numBoxes];
 		
 		for(Node node: nodes)
 			node.setup(boxs, activeboxs, boxClustNodes);
@@ -142,10 +143,10 @@ public class RunnerParallelization {
 
 	
 	private static int[][] allocateClusters(ArrayList<GridBox> boxs, DRand rd) throws FileNotFoundException {
-    	Scanner clustReader = new Scanner(new File(Runner.settings.CTRL.CLUST_FILE));
+    	Scanner clustReader = new Scanner(new File(Runner.settings.ctrl.clustFile));
 
 		
-		int[][] boxsClustNodes = new int[Runner.settings.NUM_BOXES][3];
+		int[][] boxsClustNodes = new int[Runner.settings.numBoxes][3];
 		
     	int i =0;
         while (clustReader.hasNextLine()){
@@ -175,30 +176,43 @@ public class RunnerParallelization {
 
 
 
-	public int calcGlobalDiversity(List<GridBox> activeboxs) {
-		int globalDiversity;
-		long[] allLins2 = new long[0];
+	/**Gets all surviving lineage IDs from all nodes
+	 * Uses MPI to obtain lineage IDs from other nodes
+	 * 
+	 * @param activeBoxes all locations on this node
+	 * @param hour current time
+	 * @return
+	 */
+	public long[] getAllLineageIDs(List<GridBox> activeBoxes, long hour) {
 		
-		if(isDistributed()) {
+		
+		//get list of all lineages on this machine
+        long[] allLinsLocal = Runner.getAllLins(activeBoxes);
+        
+        //otherwise MPI message too long
+        if(allLinsLocal.length > 100000000)
+        	return new long[] {};
+		
+        if(!distributed)
+        	return allLinsLocal;
+        else {
 			
 			////////////////// Get all lineages from each distributed cluster to calculate number of lineages globally
-			
-						//get list of all lineages on this machine
-			            long[] allLins = activeboxs.stream().flatMapToLong(box -> box.streamLinNums())
-			            									.distinct().toArray();
+			long[] allLinsGlobal = new long[0];
+
 		             	MPI.COMM_WORLD.Barrier();
 								
 						if (!amIController()) {
 							
 							//each non controller sends list of lineages to controller
-				            MPI.COMM_WORLD.Isend(allLins, 0, allLins.length, MPI.LONG, 0, 1);
+				            MPI.COMM_WORLD.Isend(allLinsLocal, 0, allLinsLocal.length, MPI.LONG, 0, 1);
 
 						}else {
 							
 		
 							//controller calculates global list of lineages from:
 									//1) It's own list of lineages
-							LongStream globLins = LongStream.of(allLins);
+							LongStream globLins = LongStream.of(allLinsLocal);
 
 									//2) Receive list of lineages from others
 							HashSet<Integer> msgRecieved = new HashSet<Integer>();
@@ -224,40 +238,27 @@ public class RunnerParallelization {
 							}
 							
 										//4) Convert to array
-							allLins2 = globLins.toArray();
+							allLinsGlobal = globLins.toArray();
 						}
 						
 						
 			////////////////// If needed to trim temp array,
 			////////////////// controller then sends global list of lineages to everything else
-			if(Runner.settings.IS_SELECTIVE) {
-				int[] numLins = amIController() ? new int[] {allLins2.length} : new int[1];
-				MPI.COMM_WORLD.Bcast(numLins, 0, 1, MPI.INT, 0);
-				
-				//save received numlins in nl
-				int nl = numLins[0];
-				
-				if(!amIController())
-					allLins2 = new long[nl];
-				MPI.COMM_WORLD.Bcast(allLins2, 0, nl, MPI.LONG, 0); //receive actual lins from all
-
-			}
-						
+			int[] numLins = amIController() ? new int[] {allLinsGlobal.length} : new int[1];
+			MPI.COMM_WORLD.Bcast(numLins, 0, 1, MPI.INT, 0);
+			
+			//save received numlins in nl
+			int nl = numLins[0];
+			
+			if(!amIController())
+				allLinsGlobal = new long[nl];
+			MPI.COMM_WORLD.Bcast(allLinsGlobal, 0, nl, MPI.LONG, 0); //receive actual lins from all
+			return allLinsGlobal;
 						
 		} 
-		else {
-			
-			allLins2 = activeboxs.stream().flatMapToLong(box -> box.streamLinNums()).distinct().toArray();
 
-		}
-		
-		globalDiversity = allLins2.length;
-		if(Runner.settings.IS_SELECTIVE)
-			SelLineage.trimTempArray(LongStream.of(allLins2));
-
-		
-		return globalDiversity;
 	}
+
 
 
 

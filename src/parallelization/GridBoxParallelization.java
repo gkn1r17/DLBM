@@ -123,7 +123,7 @@ public class GridBoxParallelization {
 			Lineage newLin = lin.copy(imNum);
 			
 			long nextID = newLin.getId();
-			if(Runner.settings.CTRL.TRACER_MODE)
+			if(Runner.settings.ctrl.tracerMode)
 				arrivedFrom.add((int) nextID);
 			
 			population.add(newLin);
@@ -156,7 +156,7 @@ public class GridBoxParallelization {
 		
 		//// EXTERNAL
 		Lineage newLin = null;
-		long lastID = 0;
+		long lastID = -1;
 		while(!extImmmigrants.isEmpty()) {
 			
 			
@@ -164,7 +164,7 @@ public class GridBoxParallelization {
 			long[] extIm = extImmmigrants.pollFirst();
 			
 			
-			if(Runner.settings.CTRL.TRACER_MODE)
+			if(Runner.settings.ctrl.tracerMode)
 				arrivedFrom.add((int) extIm[1]);
 			
 			//if two copies of same lineage arrived from different nodes

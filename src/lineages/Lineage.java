@@ -26,12 +26,12 @@ public abstract class Lineage implements Comparable<Lineage>{
 
 	public int size = 0;
 	protected final long id;
-	protected final long birthHour;
+	//protected final long birthHour;
 	
-	protected Lineage(int sz, long id, long birthHour) {
+	protected Lineage(int sz, long id) { //, long birthHour) {
 		size = sz;
 		this.id = id;
-		this.birthHour = birthHour;
+		//this.birthHour = birthHour;
 	}
 	
 	@Override
@@ -72,8 +72,8 @@ public abstract class Lineage implements Comparable<Lineage>{
 
 	public String getDetails() {
 		String out = id + "," + size;
-		if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
-			out = out + "," + birthHour;
+		//if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
+			//out = out + "," + birthHour;
 		return out;
 	}
 	
@@ -118,7 +118,7 @@ public abstract class Lineage implements Comparable<Lineage>{
 		
 		//******** GROWTH
 		int add = willGrow ?
-				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged, Runner.settings.SCI.W), bn, rd) :
+				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged, Runner.settings.sci.W), bn, rd) :
 					0;
 		//
 		
@@ -129,14 +129,15 @@ public abstract class Lineage implements Comparable<Lineage>{
 		
 		
 		//******** MUTATION 
-		int mutate = (add > 0 && Runner.settings.SCI.MUTATION > 0) ?
-					ProbFunctions.getBinomial(add, Runner.settings.SCI.MUTATION, bn, rd) :
+		int mutate = (add > 0 && Runner.settings.sci.mutation > 0) ?
+					ProbFunctions.getBinomial(add, Runner.settings.sci.mutation, bn, rd) :
 						0;
 		if(mutate > 0) {
 			addMutants(mutate, phylogeny,  mutants, bn, rd, hour);
-			phylogeny.addMutants(id, mutate, hour); //add record of mutants for outputting as phylogeny
+			if(Runner.settings.mutantTimestepsArr != null)
+				phylogeny.addMutants(id, mutate, hour); //add record of mutants for outputting as phylogeny
 		}
-		if(Runner.settings.CTRL.DEBUG)
+		if(Runner.settings.ctrl.debugMutants)
 			gridBox.debugMutants(mutate, add - die);
 		//
 		
@@ -152,8 +153,20 @@ public abstract class Lineage implements Comparable<Lineage>{
 		
 	}
 	
+	/**When mutating, add mutants to temporary cache to add to population before next updating
+	 * (avoids concurrent modification of population)
+	 * 
+	 * @param numMuts number of mutants
+	 * @param phylogeny phylogeny holds record of all mutants up to now - importantly for this method holds "counter" so can add 
+	 * 																		mutant with next available ID
+	 * @param mutants mutants added this time step at this gridbox - to add new mutants too
+	 * @param bn Binomial used in getBinomial(...) to randomly adjust temperature in selective mutation (choose number to increment temp upwards)
+	 * @param rd DRand used in getBinomial(...) to randomly adjust temperature in selective mutation (choose number to increment temp upwards)
+	 * @param hour hour of mutation
+	 * @throws Exception
+	 */
 	protected abstract void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
-																						Binomial bn, DRand rd, long hour) throws Exception;
+																			Binomial bn, DRand rd, long hour) throws Exception;
 		
 
 
@@ -171,9 +184,9 @@ public abstract class Lineage implements Comparable<Lineage>{
 		//if not sunk will add SINK_OFFSET
 		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
 		if(id >= ControlConfig.SINK_OFFSET) //if already sunk then unsink
-			return new NeutralLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, birthHour); 
+			return new NeutralLineage(sinkNum, id  - ControlConfig.SINK_OFFSET); //, birthHour); 
 		else
-			return new NeutralLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, birthHour); 
+			return new NeutralLineage(sinkNum, id  + ControlConfig.SINK_OFFSET); //, birthHour); 
 	}
 	
 	/**Make Lineage from long[] = 
@@ -193,7 +206,9 @@ public abstract class Lineage implements Comparable<Lineage>{
 		
 		int numNew = (int)extIm[1];
 		long id = extIm[0];
-		long hourBorn = extIm[2];
+		long hourBorn = Runner.settings.ctrl.saveBirthHour == true
+						? extIm[2]
+						: 0;
 		
 		return makeNew(id, numNew, hourBorn,  tempLins, newTemp);
 		
@@ -213,19 +228,20 @@ public abstract class Lineage implements Comparable<Lineage>{
 	public static Lineage makeNew(long id, int numNew, long hourBorn, 
 			ConcurrentHashMap<Long, Float> tempLins, Float newTemp) throws Exception {
 		
-		if(Runner.settings.SCI.TEMP_FILE == null)
-			return new NeutralLineage(numNew, id, hourBorn);
+		if(Runner.settings.sci.tempFile == null)
+			return new NeutralLineage(numNew, id); //, hourBorn);
 		else {
 			if(newTemp == null)
 				newTemp = tempLins.get(id);
 			if(newTemp == null)
 				throw new Exception("Temperature expected but not found for selective lineage " + id);
-			return new SelLineage(numNew, id, hourBorn, newTemp);
+			return new SelLineage(numNew, id, newTemp); //hourBorn, newTemp);
 		}
 	}
 
 	public long getBirthHour() {
-		return birthHour;
+		//return birthHour;
+		return 0;
 	}
 
 

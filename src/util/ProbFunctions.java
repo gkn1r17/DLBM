@@ -5,7 +5,16 @@ import cern.jet.random.engine.DRand;
 
 public class ProbFunctions {
 	 
-
+		/**Sample Binomial distribution (wrapper for cern.jet.random.Binomial).
+		 * Includes fall back for very low probability
+		 * 
+		 * @param n
+		 * @param probability
+		 * @param bn
+		 * @param rd fallback for very low probability
+		 * @return
+		 * @throws Exception
+		 */
 		public static int getBinomial(int n, double probability, Binomial bn, DRand rd) throws Exception {
 			if(n == 0)
 				return 0;

@@ -1,3 +1,7 @@
+/**Produce Transport Matrix in form of Grid with every box connected to its neighbours
+ * 
+ */
+
 package transportMatrix.artificialTM;
 
 import java.io.FileWriter;
@@ -11,28 +15,31 @@ import transportMatrix.GridBox;
 
 public class MakeArtificialTM {
 
-	
+	/**
+	 * 
+	 * @return array containing every GridBox
+	 */
 	public static GridBox[] makeUniformTM() {
 		
 		//Runner.settings.ART_TM_CONFIG.TM_DISP_ is per day is assumed per day - adjust if different interval
-		double disp = Runner.settings.TM.TM_DISP / (24/ Runner.settings.SCI.DISP_HOURS) ;
-		double dispOut = Runner.settings.TM.TM_DISP_OUT / (24/ Runner.settings.SCI.DISP_HOURS) ;
-		double dispIn = Runner.settings.TM.TM_DISP_IN / (24/ Runner.settings.SCI.DISP_HOURS) ;
+		double disp = Runner.settings.tm.tmDisp / (24/ Runner.settings.sci.dispHours) ;
+		double dispOut = Runner.settings.tm.tmDispOut / (24/ Runner.settings.sci.dispHours) ;
+		double dispIn = Runner.settings.tm.tmDispIn / (24/ Runner.settings.sci.dispHours) ;
 		
 		StringBuilder tmWriter = new StringBuilder("From,To,Weight");
 		
-		GridBox[] boxes = new GridBox[Runner.settings.NUM_BOXES];
+		GridBox[] boxes = new GridBox[Runner.settings.numBoxes];
 		
-		int splitRow = (int) ((Runner.settings.TM.TM_SPLIT_COL % 1.0) * Runner.settings.TM.TM_NUM_ROWS);
+		int splitRow = (int) ((Runner.settings.tm.tmSplitCol % 1.0) * Runner.settings.tm.tmNumRows);
 		if(splitRow == 0)
-			splitRow = Runner.settings.TM.TM_NUM_ROWS;
+			splitRow = Runner.settings.tm.tmNumRows;
 		
 		//columns then rows
-		for(int i =0; i < Runner.settings.NUM_BOXES; i++) {
+		for(int i =0; i < Runner.settings.numBoxes; i++) {
 			int from = i;
-			int[] tos = Runner.settings.TM.TM_GYRE ?
+			int[] tos = Runner.settings.tm.tmGyre ?
 					new int[] {i + 1} :
-					new int[] {i + 1, i + Runner.settings.TM.TM_NUM_COLS, i - 1, i - Runner.settings.TM.TM_NUM_COLS};
+					new int[] {i + 1, i + Runner.settings.tm.tmNumCols, i - 1, i - Runner.settings.tm.tmNumCols};
 			
 			
 			
@@ -40,20 +47,20 @@ public class MakeArtificialTM {
                 boxes[from] = new GridBox(from, 1.0, new double[] {-999.0});
 			for(int to : tos) {
 				
-				if(Runner.settings.TM.TM_GYRE) {
-					if(to == Runner.settings.NUM_BOXES)
+				if(Runner.settings.tm.tmGyre) {
+					if(to == Runner.settings.numBoxes)
 						to = 0;
 				}
-				if(to < Runner.settings.NUM_BOXES && to >= 0) {
+				if(to < Runner.settings.numBoxes && to >= 0) {
 					if(boxes[to] == null)
 						boxes[to] = new GridBox(to, 1.0, new double[] {-999.0});
-					if(Runner.settings.TM.TM_GYRE &&  (to == 0 || to == Runner.settings.NUM_BOXES / 2) && dispOut != disp) {
+					if(Runner.settings.tm.tmGyre &&  (to == 0 || to == Runner.settings.numBoxes / 2) && dispOut != disp) {
 						if(dispOut > 0)
 							boxes[from].addDest(dispOut, boxes[to], tmWriter);
-						if(to == Runner.settings.NUM_BOXES / 2)
+						if(to == Runner.settings.numBoxes / 2)
 							boxes[from].addDest(disp - dispOut, boxes[0], tmWriter);
 						else
-							boxes[from].addDest(disp - dispOut, boxes[Runner.settings.NUM_BOXES / 2], tmWriter);
+							boxes[from].addDest(disp - dispOut, boxes[Runner.settings.numBoxes / 2], tmWriter);
 						
 					}
 					else{
@@ -70,12 +77,12 @@ public class MakeArtificialTM {
 		}
 		
 		//add channels in/out of isolated region if there is one
-		if(Runner.settings.TM.TM_SPLIT_COL != 0 ) {
+		if(Runner.settings.tm.tmSplitCol != 0 ) {
 			
 			
 			
 			//top left -> top right
-			int boxA = (int) ((Math.ceil(Runner.settings.TM.TM_SPLIT_COL) - 1) + (Runner.settings.TM.TM_NUM_COLS * Math.floor(splitRow / 2)));
+			int boxA = (int) ((Math.ceil(Runner.settings.tm.tmSplitCol) - 1) + (Runner.settings.tm.tmNumCols * Math.floor(splitRow / 2)));
 			int boxB = boxA + 1;
 			boxes[boxA].addDest(dispOut, boxes[boxB], tmWriter);			
 			if(dispIn > 0)
@@ -85,14 +92,14 @@ public class MakeArtificialTM {
 		//allocate clusters
 		int clustRows = 1;
 		int clustCols = 1;
-		if(Runner.settings.NUM_BOXES > Runner.settings.TM.TM_NUM_CORES) {
+		if(Runner.settings.numBoxes > Runner.settings.tm.tmNumCores) {
 		
-			int clustSize = (int) Math.round((double)Runner.settings.NUM_BOXES / (double)Runner.settings.TM.TM_NUM_CORES);
-			clustRows = Math.min(Runner.settings.TM.TM_NUM_ROWS,(int) Math.round(Math.sqrt(clustSize)));
+			int clustSize = (int) Math.round((double)Runner.settings.numBoxes / (double)Runner.settings.tm.tmNumCores);
+			clustRows = Math.min(Runner.settings.tm.tmNumRows,(int) Math.round(Math.sqrt(clustSize)));
 			clustCols = clustSize / clustRows;
 		}
 		
-        for(int i =0 ; i < Runner.settings.NUM_BOXES; i++) {
+        for(int i =0 ; i < Runner.settings.numBoxes; i++) {
         	try {
 				boxes[i].sortMovers(boxes);
 			} catch (Exception e) {
@@ -112,12 +119,12 @@ public class MakeArtificialTM {
 		
 		int nCols = clustCols;
 		int nRows = clustRows;
-		while(startY < (Runner.settings.TM.TM_NUM_COLS * Runner.settings.TM.TM_NUM_ROWS) ) {
+		while(startY < (Runner.settings.tm.tmNumCols * Runner.settings.tm.tmNumRows) ) {
 			for(int x = 0; x < nCols; x++) {
 				for(int y = 0; y < nRows; y++) {
 		            
 		            
-		            int boxI = startY + (Runner.settings.TM.TM_NUM_COLS * y) + startX + x;
+		            int boxI = startY + (Runner.settings.tm.tmNumCols * y) + startX + x;
 //		            if(boxI < Runner.settings.NUM_BOXES) {
 //		            		clusts.putIfAbsent(clustI, new Cluster(rd.nextInt(),0));
 //		            		clusts.get(clustI).addGridBox(boxs[boxI]);
@@ -128,18 +135,18 @@ public class MakeArtificialTM {
 			}
 			clustI++;
 			startX = startX + clustCols;
-			if(startX >= Runner.settings.TM.TM_NUM_COLS) {
+			if(startX >= Runner.settings.tm.tmNumCols) {
 				startX = 0;
-				startY = startY + (Runner.settings.TM.TM_NUM_COLS * clustRows);
+				startY = startY + (Runner.settings.tm.tmNumCols * clustRows);
 			}
 			
-			nCols = Math.min(Runner.settings.TM.TM_NUM_COLS - startX, clustCols);
+			nCols = Math.min(Runner.settings.tm.tmNumCols - startX, clustCols);
 
 		}
 		
 		
 		try {
-			FileWriter outputfile = new FileWriter(Runner.settings.SCI.TM_FILE,false);
+			FileWriter outputfile = new FileWriter(Runner.settings.sci.tmFile,false);
 			outputfile.write(tmWriter.toString());
 			outputfile.close();
 		} catch (IOException e) {
@@ -152,28 +159,35 @@ public class MakeArtificialTM {
 
 	}
 
+	/**
+	 * 
+	 * @param boxA
+	 * @param boxB
+	 * @param splitRow
+	 * @return
+	 */
 	public static boolean sameClust(int boxA, int boxB, int splitRow) {
-		int colA = (boxA % Runner.settings.TM.TM_NUM_COLS);
-		int colB = (boxB % Runner.settings.TM.TM_NUM_COLS);
+		int colA = (boxA % Runner.settings.tm.tmNumCols);
+		int colB = (boxB % Runner.settings.tm.tmNumCols);
 		
 		if(Math.abs(colA - colB) > 1) // so doesn't loop around sides
 			return false;
 		
-		if(Runner.settings.TM.TM_SPLIT_COL == 0) //if not using isolated region at all
+		if(Runner.settings.tm.tmSplitCol == 0) //if not using isolated region at all
 			return true;
 		
-		int rowA = Math.floorDiv(boxA, Runner.settings.TM.TM_NUM_COLS);
-		int rowB = Math.floorDiv(boxB, Runner.settings.TM.TM_NUM_COLS);
+		int rowA = Math.floorDiv(boxA, Runner.settings.tm.tmNumCols);
+		int rowB = Math.floorDiv(boxB, Runner.settings.tm.tmNumCols);
 
 		//row split
-		if(colA == colB && colA <= Math.ceil(Runner.settings.TM.TM_SPLIT_COL) - 1) {
+		if(colA == colB && colA <= Math.ceil(Runner.settings.tm.tmSplitCol) - 1) {
 			return rowA >= splitRow == rowB >= splitRow;
 		}
 		
 		if(rowA >= splitRow && rowB >= splitRow)
 			return true;
 		
-		return(colA > (Math.ceil(Runner.settings.TM.TM_SPLIT_COL) - 1) == colB > (Math.ceil(Runner.settings.TM.TM_SPLIT_COL) - 1) );
+		return(colA > (Math.ceil(Runner.settings.tm.tmSplitCol) - 1) == colB > (Math.ceil(Runner.settings.tm.tmSplitCol) - 1) );
 		
 		
 			

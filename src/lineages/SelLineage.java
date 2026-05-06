@@ -38,11 +38,17 @@ public class SelLineage extends Lineage{
 	
 
 
-	protected SelLineage(int sz, long id,  long birthHour, float t_tOpt) {
-		super(sz, id, birthHour);
+	protected SelLineage(int sz, long id, float t_tOpt) { //,  long birthHour, float t_tOpt) {
+		super(sz, id); //, birthHour);
 		this.t_opt = t_tOpt;
 	}
 	
+	/**Set temperature dependent growth function to t_growthRate (growth coefficient)
+	 * 
+	 * @param tenv environmental temperature
+	 * @param tempChanged if environmental temperature changed so needs recalculating
+	 * @return t_growthRate (selective coefficient on growth rate)
+	 */
 	@Override
 	public double getSelectiveGrowth(double tenv, boolean tempChanged, float W) {
 		if(tempChanged || t_growthRate == -1)
@@ -52,6 +58,13 @@ public class SelLineage extends Lineage{
 		//return tempFunc(t_tOpt, tenv, Settings.W);
 	}
 	
+	/**Temperature dependent growth function. Sets to t_growthRate
+	 * 
+	 * @param topt thermal optimum
+	 * @param tenv environmental temperature
+	 * @param W niche width
+	 * @return
+	 */
 	public static double tempFunc(float topt, double tenv, float W) {
 		return Math.exp( -Math.pow(((tenv - topt)/W),2) );
 	}
@@ -60,30 +73,34 @@ public class SelLineage extends Lineage{
 		return t_opt;
 	}
 	
-	public String getDetails() {
-		return super.getDetails() + "," + t_opt;
-	}
+
 	
-	public double[] getDetailsArr() {
-		return new double[] {getId(), size, t_opt};
-	}
-	
+	/**If move make so will recalculate 
+	 * 
+	 */
 	public void prepareForMove() {
 		t_growthRate = -1;
 	}
 	
 	@Override
 	public SelLineage copy(int num) {
-		return new SelLineage(num, id, birthHour, t_opt);
+		return new SelLineage(num, id, t_opt); //birthHour, t_opt);
 	}
 
 
-	public static void trimTempArray(LongStream longStream) {
+	/**For efficiency, periodically remove extinct lineages from saved temperatures.
+	 * NOTE: temperatures are not saved in SelLineage as this would mean repeated storage for every Lineage at every Location
+	 * which means run out of memory 
+	 * 
+	 * @param allLins surviving lineages
+	 */
+	public static void trimTempArray(long[] allLins) {
 		TreeMap<Long, Float> newTempLins = new TreeMap<Long,Float>();
-		longStream.forEach(e ->
-					newTempLins.put(e, Runner.runState.tempLins.remove(e))
-				);
-		
+		for(long lin : allLins) {
+			Float topt = Runner.runState.tempLins.remove(lin);
+			if(topt != null)
+				newTempLins.put(lin, topt);
+		}
 		Runner.runState.tempLins.clear();
 		Runner.runState.tempLins.putAll(newTempLins);
 
@@ -103,26 +120,36 @@ public class SelLineage extends Lineage{
 		//if not sunk will add SINK_OFFSET
 		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
 		if(id >= ControlConfig.SINK_OFFSET) { //if already sunk then unsink
-				return new SelLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, birthHour, t_opt); 
+				return new SelLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, t_opt); //birthHour, t_opt); 
 		}
 		else {
-				return new SelLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, birthHour, t_opt); 
+				return new SelLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, t_opt); //birthHour, t_opt); 
 		}
 	}
 
 	@Override
 	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
-																						Binomial bn, DRand rd, long hour) throws Exception {
+										Binomial bn, DRand rd, long hour) throws Exception {
 		int numUpTemp = ProbFunctions.getBinomial(numMuts, 0.5, bn, rd);
-		float addToTemp = Runner.settings.SCI.TEMP_MUTINTV;
+		float addToTemp = Runner.settings.sci.tempMutIntv;
 		for(int i =0; i < numMuts; i++) {
 			if(i == numUpTemp)
 				addToTemp = addToTemp * -1;
-			mutants.add(new SelLineage(1, phylogeny.getNextMutantCounter(), hour, t_opt + addToTemp));
+			mutants.add(new SelLineage(1, phylogeny.getNextMutantCounter(),  t_opt + addToTemp)); //hour, t_opt + addToTemp));
 		}
 	}
 
 
 
+	///////////////// OUTPUT //////////////////////
+	
+	public String getDetails() {
+		return super.getDetails() + "," + t_opt;
+	}
+	
+	public double[] getDetailsArr() {
+		return new double[] {getId(), size, t_opt};
+	}
+	
 
 }

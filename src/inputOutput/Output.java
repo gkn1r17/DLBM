@@ -16,28 +16,28 @@ import transportMatrix.Phylogeny;
 
 public class Output {
 	
-	/***/
+	/**Object handling debugging*/
 	public final Debug debug = new Debug();
-	/**Index with settings.SAVE_*/
+	/**When to next save full population (index within Config.SAVE_TIMESTEPS_ARR)*/
 	private int saveI;
+	/**When to next "report": print abridged info to screen / log (index within Config.REPORT_TIMESTEPS_ARR)*/
 	private int reportI;
+	/**When to next print info on new mutants to screen / log (index within Config.MUTANT_TIMESTEPS_ARR)*/
 	private int mutantI;
-	private int checkpointCounter = 0;
-
-	
-	private final StringBuilder reportForCSV = new StringBuilder();
+	/**Saves output of "report" for printing to timeseries CSV*/
+	private StringBuilder reportForCSV = new StringBuilder();
 	
 
 
 	public long[] startOutput(List<GridBox> activeboxs, int globalDiversity, boolean isController) throws Exception {
-		long hour = Runner.settings.CTRL.LOAD_HOUR;
+		long hour = Runner.startHour;
 
 		
 		
 		//************CSV FILE WITH GLOBAL/LOCAL DIVERSITIES
 		//at top of report for CSV print grid box IDs for collating later 
 										//(makes collating process agnostic to how boxs are split up)
-		if(Runner.settings.CTRL.LOAD_HOUR == 0) {
+		if(Runner.startHour == 0) {
 			reportForCSV.append("Location IDs,node," + Runner.runParallel.getRank() + ",");
 	
 			for(GridBox box : activeboxs)
@@ -60,16 +60,16 @@ public class Output {
 		//***********SAVE
 		//find first time stamp (in days) on which to save
 		saveI = 0;
-		long saveNext = Runner.settings.SAVE_TIMESTEPS_ARR[saveI];
+		long saveNext = Runner.settings.saveTimestepsArr[saveI];
 		//in case loaded saved run - find next time stamp (in days) on which to save
 		while(hour > 0 && hour >= saveNext) {
 			saveI++;
-			if(saveI >= Runner.settings.SAVE_TIMESTEPS_ARR.length) {
+			if(saveI >= Runner.settings.saveTimestepsArr.length) {
 				System.out.println("WARNING: no save times < loaded start time");
 				saveNext = Long.MAX_VALUE;
 				break;
 			}
-			saveNext = Runner.settings.SAVE_TIMESTEPS_ARR[saveI];
+			saveNext = Runner.settings.saveTimestepsArr[saveI];
 		}
 		//save timestamp 0 if requested
 		if(saveNext == 0)
@@ -80,16 +80,16 @@ public class Output {
 		//***********REPORT
 		//find first time stamp (in days) on which to report
 		reportI = 0;
-		long reportNext = Runner.settings.REPORT_TIMESTEPS_ARR[reportI];
+		long reportNext = Runner.settings.reportTimestepsArr[reportI];
 		//in case loaded saved run - find next time stamp (in days) on which to save
 		while(hour > 0 && hour >= reportNext) {
 			reportI++;
-			if(reportI >= Runner.settings.REPORT_TIMESTEPS_ARR.length) {
+			if(reportI >= Runner.settings.reportTimestepsArr.length) {
 				System.out.println("WARNING: no report times < loaded start time");
 				reportNext = Long.MAX_VALUE;
 				break;
 			}
-			reportNext = Runner.settings.REPORT_TIMESTEPS_ARR[reportI];
+			reportNext = Runner.settings.reportTimestepsArr[reportI];
 		}
 		//report timestamp 0 if requested
 		if(reportNext == 0)
@@ -103,20 +103,20 @@ public class Output {
 		//find first time stamp (in days) on which to report
 		mutantI = 0;
 		long mutantNext = 0;
-		if(Runner.settings.SCI.MUTATION == 0 || Runner.settings.MUTANT_TIMESTEPS_ARR == null) { //not saving phylogeny
+		if(Runner.settings.sci.mutation == 0 || Runner.settings.mutantTimestepsArr == null) { //not saving phylogeny
 			mutantNext = Long.MAX_VALUE;
 		}
 		else {
-				mutantNext = Runner.settings.MUTANT_TIMESTEPS_ARR[mutantI];
+				mutantNext = Runner.settings.mutantTimestepsArr[mutantI];
 				//in case loaded saved run - find next time stamp (in days) on which to save
 				while(hour > 0 && hour >= mutantNext) {
 					mutantI++;
-					if(mutantI >= Runner.settings.MUTANT_TIMESTEPS_ARR.length) {
+					if(mutantI >= Runner.settings.mutantTimestepsArr.length) {
 						System.out.println("WARNING: no mutant times < loaded start time");
 						mutantNext = Long.MAX_VALUE;
 						break;
 					}
-					mutantNext = Runner.settings.MUTANT_TIMESTEPS_ARR[mutantI];
+					mutantNext = Runner.settings.mutantTimestepsArr[mutantI];
 				}
 				//report timestamp 0 if requested
 				if(mutantNext == 0)
@@ -125,7 +125,7 @@ public class Output {
 		//
 		
 		if(isController)
-			FileIO.makeSettingsFile(Runner.runState.simulationName, Runner.settings.getSettingsIniOut());
+			FileIO.makeSettingsFile(Runner.runState.simName, Runner.settings.getSettingsIniOut());
 		
 		debug.oldGlobalDiversity = globalDiversity;
 
@@ -140,7 +140,7 @@ public class Output {
 		int hourOfDay = (int) (hour - (day * 24));
 		String hourDayString = "" + day + "hr" + hourOfDay; 
 		
-		Phylogeny.saveMutants(Runner.runState.simulationName,  hourDayString, activeboxs);
+		Phylogeny.saveMutants(Runner.runState.simName,  hourDayString, activeboxs);
 		debug.mutantLastSavedHour = hour;
 		
 		
@@ -148,8 +148,8 @@ public class Output {
 		mutantI ++;
 		
 		//saveNext = when next to save
-		return ((mutantI < Runner.settings.MUTANT_TIMESTEPS_ARR.length)   ?
-							Runner.settings.MUTANT_TIMESTEPS_ARR[mutantI] :
+		return ((mutantI < Runner.settings.mutantTimestepsArr.length)   ?
+							Runner.settings.mutantTimestepsArr[mutantI] :
 							Integer.MAX_VALUE
 				);
 	}
@@ -166,28 +166,27 @@ public class Output {
 				box.combineImmigrants();
 			
 			//include length of longest row for easier loading into R
-			//include length of longest row for easier loading into R
 			int chunkLength = 2;
-			if(Runner.settings.IS_SELECTIVE)
+			if(Runner.settings.isSelective)
 				chunkLength++;
-			if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
+			if(Runner.settings.ctrl.saveBirthHour)
 				chunkLength++;
 			int lineLength = (activeboxs.stream().mapToInt(GridBox::getNumLins).max().getAsInt() * chunkLength) + 1;
 			
-			String filename = Runner.runState.simulationName + "s" + lineLength + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
-			FileIO.savePop(activeboxs, filename);
+			String filename = Runner.runState.simName + "s" + lineLength + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
+			FileIO.savePop(activeboxs, filename, "");
 			
 
 			
 			//save local/global diversity over time
-			logToCSV(Runner.runState.simulationName);
+			logToCSV(Runner.runState.simName);
 			
 			//next timestamp
 			saveI ++;
 			
 			//saveNext = when next to save
-			return ((saveI < Runner.settings.SAVE_TIMESTEPS_ARR.length)   ?
-								Runner.settings.SAVE_TIMESTEPS_ARR[saveI] :
+			return ((saveI < Runner.settings.saveTimestepsArr.length)   ?
+								Runner.settings.saveTimestepsArr[saveI] :
 								Integer.MAX_VALUE
 					);
 	}	
@@ -198,18 +197,27 @@ public class Output {
 			//for back compatibility as formally only counted days
 			long day = (long) Math.floor(hour / 24);
 
-		
-		
 			for(GridBox box : activeboxs)
 				box.combineImmigrants();
 			
-			if(Runner.settings.CTRL.TRACER_MODE) {
+			if(Runner.settings.ctrl.tracerMode) {
 				for(GridBox box : activeboxs)
 					box.tracerPrint(day, activeboxs);
 				
 			}
 			else {
 				reportLocalGlobalDiversity("day," + day + ",year," + Math.floorDiv(day, 365), day, activeboxs, globalDiversity);
+			
+				
+				//report mutant idx for working out age of new individuals
+				System.out.print("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
+				reportForCSV.append("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
+				for(GridBox box : activeboxs) { 
+					System.out.print("," + box.getCurrentMutantID());
+					reportForCSV.append("," + box.getCurrentMutantID());
+				}
+				reportForCSV.append("\n");
+				System.out.println();
 			}
 			
 			
@@ -217,8 +225,8 @@ public class Output {
 			reportI ++;
 			
 			//reportNext = when next to report
-			return ((reportI < Runner.settings.REPORT_TIMESTEPS_ARR.length)   ?
-						Runner.settings.REPORT_TIMESTEPS_ARR[reportI] :
+			return ((reportI < Runner.settings.reportTimestepsArr.length)   ?
+						Runner.settings.reportTimestepsArr[reportI] :
 								Integer.MAX_VALUE
 					);	
 		}
@@ -229,25 +237,18 @@ public class Output {
 	 * @param day
 	 * @param hourOfDay
 	 * @param activeboxs 
+	 * @param checkLetter 
 	 * @param neutral 
 	 * @param DIR_OUT 
 	 * @param FILE_OUT 
 	 * @throws Exception
 	 */
-	public void checkPoint(long hour, List<GridBox> activeboxs) throws Exception {
+	public void checkPoint(long hour, List<GridBox> activeboxs, char checkLetter) throws Exception {
 		//all output is currently not in hours but [day]h[hourOfDay] format
 		//for back compatibility as formally only counted days
 		long day = (long) Math.floor(hour / 24);
 		int hourOfDay = (int) (hour - (day * 24));
 		String hourDayString = "" + day + "hr" + hourOfDay; 
-
-		
-		
-		//print two checkpoints just in case
-		//there is no way to ensure cluster won't shut down while checkpointing
-		if(checkpointCounter == 2)
-			return;
-		
 					
 		System.out.println("Checkpointing started");
 			
@@ -255,20 +256,14 @@ public class Output {
 			box.combineImmigrants();
 		
 		//include length of longest row for easier loading into R
-		int chunkLength = 2;
-		if(Runner.settings.IS_SELECTIVE)
-			chunkLength++;
-		if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
-			chunkLength++;
-		int lineLength = (activeboxs.stream().mapToInt(GridBox::getNumLins).max().getAsInt() * chunkLength) + 1;
 		
-		String filename = Runner.runState.simulationName + "s" + lineLength + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
-		FileIO.savePop(activeboxs, filename);
+		String filename = Runner.runState.simName + "_N" + Runner.runParallel.getRank() + "_CHK" + checkLetter + ".csv";
+		FileIO.savePop(activeboxs, filename, "Day," + hourDayString + "\n");
 
 		
+		//save local/global diversity over time
+		logToCSV(Runner.runState.simName);
 		
-		
-		checkpointCounter++; 			
 		System.out.println("Checkpointing completed");
 
 			
@@ -279,6 +274,9 @@ public class Output {
 		FileWriter csvWriter = new FileWriter(fileOut + "_N" + Runner.runParallel.getRank() + ".csv", true);
 		csvWriter.write(reportForCSV.toString() + "\n");
 		csvWriter.close();
+		
+		//reset
+		reportForCSV = new StringBuilder();
 	}
 	
 	
@@ -305,13 +303,18 @@ public class Output {
 
 
 
-	public void finalOutput(String fileOut, ArrayList<GridBox> activeboxs) throws Exception {
+	public void finalOutput(String fileOut, ArrayList<GridBox> activeBoxes) throws Exception {
 		
-		for(GridBox box : activeboxs)
+		for(GridBox box : activeBoxes)
 			box.combineImmigrants();
 
 		
 		logToCSV(fileOut);
+		
+
+				
+			
+			
 	}
 	
 	public class Debug{
@@ -330,7 +333,7 @@ public class Output {
 		 */
 		public void debugMutation(int globalDiversity, ArrayList<GridBox> boxs, long hour) throws Exception {
 			
-			if(Runner.settings.MORTALITY != 0)
+			if(Runner.settings.mortality != 0)
 				throw new Exception("Debug: Debugging mutation requires Runner.settings.MORTALITY = 0");
 			
 			//get number of new unique lineages: should equal number of mutations
@@ -348,19 +351,19 @@ public class Output {
 
 
 			System.out.println("Debug: Proportion of mutations = " + (((double)numMutations) / ((double)numBirths)) + ". "
-					+ "(should be around " + Runner.settings.SCI.MUTATION + ")");
+					+ "(should be around " + Runner.settings.sci.mutation + ")");
 					
 			
 			
 			//check output phylogeny
 			if(hour == mutantLastSavedHour) {
-				long[] maxIDs = Phylogeny.loadMutants(Runner.runState.simulationName,  boxs, true, hour);
+				long[] maxIDs = Phylogeny.loadMutants(Runner.settings.saveDir, Runner.runState.simName,  boxs, Runner.settings.ctrl.deepDebugMutants, hour);
 				
 				
 				long[] linArray = boxs.stream().flatMapToLong(box -> box.streamLinNums())
 						.distinct().sorted().toArray();
 				
-				if(Runner.settings.CTRL.DEEP_DEBUG_MUTANTS) {
+				if(Runner.settings.ctrl.deepDebugMutants) {
 					long[] phylArray = boxs.stream().flatMapToLong(box -> box.streamPhylo())
 							.distinct().sorted().toArray();
 					

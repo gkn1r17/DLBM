@@ -74,7 +74,7 @@ public class GridBox implements Comparable<GridBox>{
  /**Parallelization*/
  private GridBoxParallelization parallelGB;
  
- private Phylogeny phylogeny;
+ private final Phylogeny phylogeny;
  /**ID of next mutant to be created*/
  private int numLins;
 
@@ -82,10 +82,8 @@ public class GridBox implements Comparable<GridBox>{
 private int numMutants = 0;
 private int numBirths = 0;
 
-//(using LinkedList as don't need to access index, just addFirst/removeFirst etc. so faster)
-private final LinkedList<Lineage> mutants = new LinkedList<Lineage>();
+/**ID of first lineage added*/
 private final long minID;
-
 
 /*******************************************************************************************/
 /***************************** INITIALISATION **********************************************/
@@ -95,7 +93,8 @@ private final long minID;
 		this.id = id;
 		this.tsintvTemps = temps;
 		this.volume = volume;
-		this.minID = id * Runner.settings.MUTANT_OFFSET;
+		this.minID = id * Runner.settings.mutantOffset;
+		phylogeny = new Phylogeny(id, minID);
 	 } 
 	 
 	 
@@ -103,13 +102,11 @@ private final long minID;
 	 * @param tempLins 
 	 * @throws Exception */
 	public void initPop(ConcurrentHashMap<Long, Float> tempLins) throws Exception {
-		
-		phylogeny = new Phylogeny(id, minID);
 
 		
 		population = new TreeSet<Lineage>();
 		     
-		if(Runner.settings.CTRL.TRACER_MODE) {						
+		if(Runner.settings.ctrl.tracerMode) {						
 			population.add(Lineage.makeNew(minID, myLinSize, 0, tempLins, null));
 		}
 		else {
@@ -122,7 +119,7 @@ private final long minID;
 		}
 		
 		//initialise local carrying capacity
-		myCC = (int) Math.round(Runner.settings.SCI.K * volume);
+		myCC = (int) Math.round(Runner.settings.sci.K * volume);
 		
 		
 	}
@@ -180,19 +177,15 @@ private final long minID;
 			if(id < ControlConfig.SINK_OFFSET)
 				size += num; //add to population size
 			
-			Float temp = null;
-			if(Runner.settings.SCI.TEMP_FILE != null) {
-				temp = Float.parseFloat(tokens[i + tempIDx]);
-				tempLins.put(id, temp);
-			}
+
 			
-			population.add(Lineage.makeNew(id, num, birthHour, tempLins, temp));
+			population.add(Lineage.makeNew(id, num, birthHour, tempLins, null));
 						
 		}
 		
 		if(size < 0)
 			throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
-		myCC = (int) Math.round(Runner.settings.SCI.K * volume);
+		myCC = (int) Math.round(Runner.settings.sci.K * volume);
 		
 		// NOTE = don't manipulate phylogeny now as this is done in setup() 
 		//			from maxID field in previous phylogeny file
@@ -241,10 +234,10 @@ private final long minID;
 		}
 		
 		//main ecological update loop repeats T_disp / T_growth
-		for(int i = 0; i < Runner.settings.GROWTH_PER_DISP; i++)
-			growDieMutateAll(rd, bn, pn, i == Runner.settings.GROWTH_PER_DISP - 1, i == 0 && tempChanged, hour);
+		for(int i = 0; i < Runner.settings.growthPerDisp; i++)
+			growDieMutateAll(rd, bn, pn, i == Runner.settings.growthPerDisp - 1, i == 0 && tempChanged, hour);
 	
-		if(Runner.settings.CTRL.DEBUG) {
+		if(Runner.settings.ctrl.debug) {
 			int measuredSize = population.stream().mapToInt(lin -> lin.size).sum();
 			if(measuredSize != size)
 				throw new Exception("Debug: size of grid box " + id + "(" + measuredSize + ") does not match "
@@ -267,24 +260,28 @@ private final long minID;
 	 * @throws Exception
 	 */
 	public void growDieMutateAll(DRand rd, Binomial bn, Poisson pn, boolean dispersing, boolean tempChanged, long hour) throws Exception {
-		boolean willGrow = Runner.settings.SCI.TOP_DOWN ? true : myCC > size;
+		boolean willGrow = Runner.settings.sci.topDown ? true : myCC > size;
 		
 		
 		//get growth rate and mortality
-		double gr = Runner.settings.SCI.TOP_DOWN ? 
-				Runner.settings.GROWTH_RATE
-				: ((1.0 - ((double)size / myCC)) * Runner.settings.GROWTH_RATE);
-		double mort = Runner.settings.SCI.TOP_DOWN ? 
-				(Runner.settings.MORTALITY / myCC) * size
-				: Runner.settings.MORTALITY;
+		double gr = Runner.settings.sci.topDown ? 
+				Runner.settings.growthRate
+				: ((1.0 - ((double)size / myCC)) * Runner.settings.growthRate);
+		double mort = Runner.settings.sci.topDown ? 
+				(Runner.settings.mortality / myCC) * size
+				: Runner.settings.mortality;
 		
+		
+		//New lineages created, will be added to population
+		LinkedList<Lineage> mutants = new LinkedList<Lineage>();
+
 		for(Lineage s : population) { //for every lineage
 			
 			if(s.size == 0)
 					continue;
 
 			//grow/die
-			if(s.getId() < ControlConfig.SINK_OFFSET && !Runner.settings.CTRL.TRACER_MODE)
+			if(s.getId() < ControlConfig.SINK_OFFSET && !Runner.settings.ctrl.tracerMode)
 				size += s.growDie(willGrow, gr, mort, currentTemp, 
 						tempChanged, this, pn, bn, rd, phylogeny, mutants, hour);
 			
@@ -294,7 +291,7 @@ private final long minID;
 				size -= dispBinomial(s, bn, rd);
 				
 				//dormant spores
-				if(Runner.settings.SCI.SIZE_REFUGE > 0 && s.size > 0) {
+				if(Runner.settings.sci.sizeRefuge > 0 && s.size > 0) {
 					disperseSpores(s, bn, rd);
 				}
 				
@@ -581,24 +578,24 @@ private final long minID;
 			
 			
 			//set initial population size at equilibrium
-			size = (int) Math.round(Runner.settings.INITIAL_P * volume);
+			size = (int) Math.round(Runner.settings.initialP * volume);
 			
 			//number of lineages to start with
-			numLins = (int) Math.round((double)size / (double)Runner.settings.SCI.INIT_LIN_SIZE);
+			numLins = (int) Math.round((double)size / (double)Runner.settings.sci.initLinSize);
 			
 			
-			if(Runner.settings.SCI.INIT_LIN_SIZE == Runner.settings.INITIAL_P) { //one lineage per location scenario
+			if(Runner.settings.sci.initLinSize == Runner.settings.initialP) { //one lineage per location scenario
 				myLinSize = size;
 				numLins = 1;
 				
 			}else //multiple lineages per location
-				myLinSize = Runner.settings.SCI.INIT_LIN_SIZE;
+				myLinSize = Runner.settings.sci.initLinSize;
 			
 			//adjust initial population size to exact multiple of number of lineages
 					//(not relevant if one individual per lineage equal to equilibrium size)
 			size = myLinSize * numLins;
 			
-			if(Runner.settings.CTRL.TRACER_MODE)
+			if(Runner.settings.ctrl.tracerMode)
 				numLins = 1;
 
 			
@@ -608,9 +605,9 @@ private final long minID;
 
 			
 			/////////// TEMPERATURE STUFF ////////////////////////
-			if(Runner.settings.IS_SELECTIVE) {
-				     double minTemp =  (currentTemp - (Runner.settings.SCI.TEMP_START_RANGE / 2.0)  );
-				     double maxTemp = (float) (currentTemp + (Runner.settings.SCI.TEMP_START_RANGE/2.0)   );
+			if(Runner.settings.isSelective) {
+				     double minTemp =  (currentTemp - (Runner.settings.sci.tempStartRange / 2.0)  );
+				     double maxTemp = (float) (currentTemp + (Runner.settings.sci.tempStartRange/2.0)   );
 				     
 				     if(tsintvTemps.length > 1) {
 				    	 minTemp = Arrays.stream(tsintvTemps).min().getAsDouble();
@@ -624,7 +621,9 @@ private final long minID;
 				     
 				     for(long i = minID; i < minID + numLins; i++) {
 				    	 curTemp = minTemp + (tempIntv * (i - minID) );
-				 		 tempLins.put(i, (float) curTemp);
+				    	 curTemp = Math.round(curTemp * Runner.settings.sci.tempGranularity) / (double)Runner.settings.sci.tempGranularity;
+				 		 if(Runner.settings.ctrl.loadFile == null)
+				 			 tempLins.put(i, (float) curTemp);
 				     }
 		     
 			}
@@ -661,7 +660,7 @@ private final long minID;
 
 
 	public void disperseSpores(Lineage s, Binomial bn, DRand rd) throws Exception {
-		int sinkNum = ProbFunctions.getBinomial(s.size, Runner.settings.SCI.SIZE_REFUGE, bn, rd);
+		int sinkNum = ProbFunctions.getBinomial(s.size, Runner.settings.sci.sizeRefuge, bn, rd);
 		if(sinkNum > 0) {
 			Lineage sunk =  s.makeSunk(sinkNum);
 			
@@ -710,10 +709,8 @@ private final long minID;
 
 	
 	public void debugMutants(int mutNum, int numBirths) {
-		if(Runner.settings.CTRL.DEBUG) {
 			this.numMutants += mutNum;
 			this.numBirths += numBirths;
-		}
 	}
 	
 	
@@ -737,23 +734,11 @@ private final long minID;
 	public Phylogeny getPhylogeny() {
 		return phylogeny;
 	}
-	
-	public void addLoadedPhylogeny(Phylogeny phylogeny) {
-		this.phylogeny = phylogeny;
-	}
+
 
 	public void clearPhylogeny() {
 		phylogeny.clear();
 	}
-
-
-	
-
-
-	public void setPhylogeny(Phylogeny phyl) {
-		phylogeny.merge(phyl);
-	}
-
 
 	public long getMinID() {
 		return minID;
@@ -764,7 +749,26 @@ private final long minID;
 		return phylogeny.getSize();
 	}
 
+	/**
+	 * 
+	 * @return  phylogeny.getCurrentMutantID()
+	 */
+	public long getCurrentMutantID() {
+		return phylogeny.getCurID();
+	}
 
+	public void setCurrentMutantID(long id) {
+		phylogeny.setCurID(id);
+		
+	}
+	
+	/**JUST FOR TESTING FOR NOW: Merge two phylogenies for complete phylogeny
+	 * 
+	 * @param phyl phylogeny to merge into current phylogeny
+	 */
+	void mergePhylogeny(Phylogeny phyl) {
+		phylogeny.merge(phyl);
+	}
 
 
 }

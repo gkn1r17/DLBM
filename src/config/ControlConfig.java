@@ -3,6 +3,7 @@
 
 package config;
 
+import control.Runner;
 
 public class ControlConfig {
 	
@@ -10,39 +11,43 @@ public class ControlConfig {
 
 	//TODO - should really be hours now for consistency
 	/**Total simulation duration in days*/
-	public final int DURATION_DAY;
+	public final int durationDay;
 	/** NOT FOR FULL SIMULATIONS - switch on for running special simulation to calculate tmins*/
-	public final boolean TRACER_MODE;
+	public final boolean tracerMode;
 
 	
 	//OUTPUT
 	/**path for where to save output*/
-	public final String SAVE_FILE;
+	public final String saveFile;
 	/**time in seconds before outputs message just to show hasn't crashed - if no proper update yet happened*/ 
-	public final long TIME_THRESH;
+	public final long timeThresh;
 	/**Carries out + prints certain debugging checks, currently mostly connected to mutation*/
-	public final boolean DEBUG;
+	public final boolean debug;
+	/**Debug mutation*/
+	public final boolean debugMutants;
 	/**Saves/Loads whole phylogeny to check mutants are working (NOT YET WORKING PROPERLY)*/
-	public final boolean DEEP_DEBUG_MUTANTS;
-	/**should be set to length of time available on HPC, to ensure prints loadable output immediately before job evicted*/
-	public final double CHECKPOINT_HOURS;
+	public final boolean deepDebugMutants;
 	/**If saving time of creating for every new (mutant) lineage.*/
-	public final boolean SAVE_BIRTHHOUR;
+	public final boolean saveBirthHour;
 	/**if true simulation will finish when global diversity = 1*/
-	public final boolean STOP_AT_1; 
+	public final boolean stopAt1; 
 	//timesteps for output TODO should ultimately be hour for consistency	
 	/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
-	public final String REPORT_TIMESTEPS_DAY;
+	final String reportTimestepsDay;
 	/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
-	public final String MUTANT_TIMESTEPS_DAY;
+	final String mutantTimestepsDay;
 	/**CSV file containing single column listing days to save data. "none" (null in code) if want to use DEFAULT_SAVE_TIMESTEPS*/
-	public final String SAVE_TIMESTEPS_DAY;
+	final String saveTimestepsDay;
+	/**Checkpoint files A and then B produced at this interval*/
+	public final int checkpointIntervalDay;
+
+
 
 	// LOADING PREVIOUS RUNS
 	/**if loading previous run, gives hour to load*/
-	public final long LOAD_HOUR;
+	final long loadHour;
 	/**path for where to load file*/
-	public final String LOAD_FILE;
+	public final String loadFile;
 	//----
 
 			
@@ -50,9 +55,11 @@ public class ControlConfig {
 	/**csv file specifying how locations are divided into clusters and clusters into nodes
 	 * clusters = parallelized within one computer
 	 * nodes = parallelized across computers*/
-	public final String CLUST_FILE;
+	public final String clustFile;
 	//--
-	
+	/**random seed for simulation ( -1 = randomly select random seed) */
+	public final int seed;
+
 
 	
 	//------------ MANAGING LINEAGE ID'S: THESE SHOULDN'T NEED TOUCHING
@@ -60,12 +67,6 @@ public class ControlConfig {
 	 * TODO currently not compatible with mutation
 	 */
 	public static final long SINK_OFFSET = Long.MAX_VALUE;
-	/**Used internally to guarantee unique lineage ID's in runs with mutation*/
-	public final int MUTANT_MAX_OFFSET = Integer.MAX_VALUE;
-	//---
-
-	/**random seed for simulation ( -1 = randomly select random seed) */
-	public final int SEED;
 
 	
 	
@@ -79,24 +80,24 @@ public class ControlConfig {
 		
 		
 		
-		SEED = Integer.parseInt(iniFR.getParamValue( "SEED", "Control", false));
+		seed = Integer.parseInt(iniFR.getParamValue( "SEED", "Control", false));
 
 	
-		DURATION_DAY = Integer.parseInt(iniFR.getParamValue( "DURATION_DAY", "TimeStepping", false));
-		STOP_AT_1 = iniFR.getParamValue( "STOP_AT_1", "TimeStepping", false).trim().toLowerCase().equals("true");
+		durationDay = Integer.parseInt(iniFR.getParamValue( "DURATION_DAY", "TimeStepping", false));
+		stopAt1 = iniFR.getParamValue( "STOP_AT_1", "TimeStepping", false).trim().toLowerCase().equals("true");
 
-		TRACER_MODE = iniFR.getParamValue( "TRACER_MODE", "Tracer", false).trim().toLowerCase().equals("true");
+		tracerMode = iniFR.getParamValue( "TRACER_MODE", "Tracer", false).trim().toLowerCase().equals("true");
 
 
 		
 		////////////////////////////////////////////////InputOutput //////////////////////////////////////////////			
 
-		SAVE_FILE = Config.parseFilename(iniFR.getParamValue( "FILE_OUT", "InputOutput", false));
-		TIME_THRESH = Long.parseLong(iniFR.getParamValue( "TIME_THRESH", "InputOutput", false));
-		SAVE_TIMESTEPS_DAY = iniFR.getParamValue( "SAVE_TIMESTEPS_DAY", "InputOutput", false);
-		REPORT_TIMESTEPS_DAY = iniFR.getParamValue( "REPORT_TIMESTEPS_DAY", "InputOutput", false);
-		MUTANT_TIMESTEPS_DAY = iniFR.getParamValue( "MUTANT_TIMESTEPS_DAY", "InputOutput", false);
-		CHECKPOINT_HOURS = Double.parseDouble(iniFR.getParamValue( "CHECKPOINT_HOURS", "InputOutput", false));
+		saveFile = Config.parseFilename(iniFR.getParamValue( "FILE_OUT", "InputOutput", false));
+		timeThresh = Long.parseLong(iniFR.getParamValue( "TIME_THRESH", "InputOutput", false));
+		saveTimestepsDay = iniFR.getParamValue( "SAVE_TIMESTEPS_DAY", "InputOutput", false);
+		reportTimestepsDay = iniFR.getParamValue( "REPORT_TIMESTEPS_DAY", "InputOutput", false);
+		mutantTimestepsDay = iniFR.getParamValue( "MUTANT_TIMESTEPS_DAY", "InputOutput", false);
+		checkpointIntervalDay = Integer.parseInt(iniFR.getParamValue( "CHECKPOINT_INTERVAL_DAY", "InputOutput", false));
 		
 		//FIXME
 		 /** 	(for back compatibility with some older config files 
@@ -118,35 +119,36 @@ public class ControlConfig {
 		//however is in configure file, file loading time is stored internally as LOAD_HOUR
 		//	convert in this section:
 																		//POSSIBILITIES = 		
-		LOAD_HOUR = (loadHourString != null && !loadHourString.equals("0")) 
+		loadHour = (loadHourString != null && !loadHourString.equals("0")) 
 					? 	Integer.parseInt(loadHourString) 				//1) specified in hours
 					:   (												//2) specified in days
 								(loadDayString != null && !loadDayString.equals("0"))
 								?	Config.extractDayAndHour(loadDayString)
 								:	0 									//3) NOT LOADING A FILE AT ALL
 						);
+		Runner.startHour = loadHour;
 		//
 		
 		
-		LOAD_FILE = Config.parseFilename(iniFR.getParamValue( "FILE_LOAD", "InputOutput", false));
-		//error handling
-		if( (LOAD_HOUR == 0) != (LOAD_FILE == null))
-			throw new IllegalArgumentException("If FILE_LOAD is set LOAD_HOUR or LOAD_DAY must also be set");
+		loadFile = Config.parseFilename(iniFR.getParamValue( "FILE_LOAD", "InputOutput", false));
+		//if FILE_LOAD set but LOAD_HOUR == 0, load from checkpoint
 
 			
 		
-		DEBUG = iniFR.getParamValue( "DEBUG", "InputOutput", false).toLowerCase().equals("true");
+		debug = iniFR.getParamValue( "DEBUG", "InputOutput", false).toLowerCase().equals("true");
 		
-		DEEP_DEBUG_MUTANTS = iniFR.getParamValue( "DEEP_DEBUG_MUTANTS", "InputOutput", false).toLowerCase().equals("true");
+		debugMutants = iniFR.getParamValue( "DEBUG_MUTANTS", "InputOutput", false).toLowerCase().equals("true");
+		
+		deepDebugMutants = iniFR.getParamValue( "DEEP_DEBUG_MUTANTS", "InputOutput", false).toLowerCase().equals("true");
 
 		
-		SAVE_BIRTHHOUR = iniFR.getParamValue( "SAVE_BIRTHHOUR", "InputOutput", false).toLowerCase().equals("true");
+		saveBirthHour = iniFR.getParamValue( "SAVE_BIRTHHOUR", "InputOutput", false).toLowerCase().equals("true");
 		
 				
 		////////////////////////////////////////////////parallelization //////////////////////////////////////////////			
 		
 		
-		CLUST_FILE = Config.parseFilename(iniFR.getParamValue( "CLUST_FILE", "Parallelization", false));
+		clustFile = Config.parseFilename(iniFR.getParamValue( "CLUST_FILE", "Parallelization", false));
 
 	}
 

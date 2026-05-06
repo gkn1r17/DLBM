@@ -81,7 +81,7 @@ public class Node {
 	public void setup(ArrayList<GridBox> allBoxs,  GridBox[] activeBoxess, int[][] boxClustNodes) throws Exception {
 		
 		
-		activeGBPars = new GridBoxParallelization[Runner.settings.NUM_BOXES];
+		activeGBPars = new GridBoxParallelization[Runner.settings.numBoxes];
 		
 		HashMap<Integer, Cluster> clustsFound = new HashMap<Integer, Cluster>();	
 		
@@ -169,7 +169,7 @@ public class Node {
 	 */
 	void runEcoDispersalLocal(int dayOfYear, long hour) {
 		
-		Stream<Cluster> stream = RunnerParallelization.debugSerial ?
+		Stream<Cluster> stream = RunnerParallelization.DEBUG_SERIAL ?
 										clustList.stream() :
 										clustList.parallelStream();
 		
@@ -195,7 +195,8 @@ public class Node {
 	
 
 
-	/** 
+	/**Receive MPI message: immigrant lineages to this node
+	 * (or approximation of this process when testing with multiple "nodes" locally)
 	 * 
 	 */
 	void receiveMsg() {
@@ -261,16 +262,8 @@ public class Node {
 					,0,
 					len > 0 ? len : 1,MPI.INT,othNod,0);
 
-	
-		sendMutants();
 	}
 	
-	
-	
-	private void sendMutants() {
-		// TODO Auto-generated method stub
-		
-	}
 
 
 	public void fakeDistributedDisperse(ArrayList<DispersalHandlerDistributed> distM, Node othNode) {
@@ -302,28 +295,37 @@ public class Node {
 				
 				//********** add ID 
 				long id = lin.getKey().getId();
-				
+								
 				//convert to int so int message can send longs
-				if(id > Runner.settings.CTRL.MUTANT_MAX_OFFSET) { 
+				if(id > Runner.settings.maxMutantOffset) { 
 					movStrm.add(-1);
-					movStrm.add( (int) Math.floor(id / Runner.settings.CTRL.MUTANT_MAX_OFFSET)); 
-					id = id % Runner.settings.CTRL.MUTANT_MAX_OFFSET; 
+					movStrm.add( (int) Math.floor(id / Runner.settings.maxMutantOffset)); 
+					id = id % Runner.settings.maxMutantOffset; 
 				}
 				movStrm.add((int) id); //add lineage id
+				
 				
 				//********** add population size
 				movStrm.add(lin.getValue()); //add number of individuals moved
 				
 				//********** add birth hour
-				if(Runner.settings.CTRL.SAVE_BIRTHHOUR) {
+				if(Runner.settings.ctrl.saveBirthHour) {
 					long birthHour = lin.getKey().getBirthHour();
 					if(birthHour > Integer.MAX_VALUE) { 
 						movStrm.add(-1);
-						movStrm.add( (int) Math.floor(birthHour / Runner.settings.CTRL.MUTANT_MAX_OFFSET)); 
-						birthHour = birthHour % Runner.settings.CTRL.MUTANT_MAX_OFFSET; 
+						movStrm.add( (int) Math.floor(birthHour / Runner.settings.maxMutantOffset)); 
+						birthHour = birthHour % Runner.settings.maxMutantOffset; 
 					}
 					movStrm.add((int) birthHour); //add lineage id
 				}
+				
+				//add t_opt if selective
+				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0) {
+					float temp = lin.getKey().getTopt();
+					//convert to int
+					movStrm.add((int) Math.round(temp * Runner.settings.sci.tempGranularity));
+				}
+
 			}
 		}
 		
@@ -349,8 +351,14 @@ public class Node {
 			for(Entry<Lineage, Integer> lin : mt.getValue().entrySet()) {
 				movStrm.add(lin.getKey().getId()); //add lineage id
 				movStrm.add(lin.getValue()); //add number of individuals moved
-				if(Runner.settings.CTRL.SAVE_BIRTHHOUR)
+				if(Runner.settings.ctrl.saveBirthHour)
 					movStrm.add(lin.getKey().getBirthHour());
+				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0)
+					movStrm.add(  Math.round(lin.getKey().getTopt() * Runner.settings.sci.tempGranularity));
+//				if( lin.getKey().getId() % 1000 == 0)
+//					System.out.println("Recv:" + lin.getKey().getId() + ":" + Runner.runState.tempLins.get(lin.getKey().getId()));
+
+				
 			}
 		}
 		
@@ -379,24 +387,37 @@ public class Node {
 				box = activeGBPars[(int) (-val - 2)];
 			else { //[i] = lin id, [i + 1] = num moving
 				
-				if(Runner.settings.CTRL.SAVE_BIRTHHOUR) {
+				//get ID, possibly converting from int[] if needed
+				long id = val + (Runner.settings.maxMutantOffset * nextLongEncoded);
+				
+				if(Runner.settings.ctrl.saveBirthHour) {
 					box.addExt(new long[] {
-							val + (Runner.settings.CTRL.MUTANT_MAX_OFFSET * nextLongEncoded) , //ID  may be converted long -> int
+							id, 												//ID
 							from1[i + 1] ,										   //Number of individuals
-																				  //birth hour, 
-																						//may also be converted long -> int
+																				  //birth hour 
 							(from1[i + 2] == -1 ? from1[i + 4] + (Integer.MAX_VALUE * from1[i + 3]) : from1[i + 2]) ,
 							} );									   
 					nextLongEncoded = 0;
 					i+= from1[i + 2] == -1 ? 4 : 2;
 				}
 				else {
-					
-					box.addExt(new long[] {val + (Runner.settings.CTRL.MUTANT_MAX_OFFSET * nextLongEncoded) , 
-											from1[i + 1]} );
+					//save immigrant for adding synchronously later
+					box.addExt(new long[] { id , from1[i + 1]} );
 					nextLongEncoded = 0;
 					i++;
 				}
+				
+				
+				//save t_opt
+				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
+					long temp = from1[i + 1];
+					Runner.runState.tempLins.put(id, 
+								(float) ((double)temp / (double)Runner.settings.sci.tempGranularity)
+							);
+					i++;
+				}
+
+				
 			}
 		}
 
@@ -418,12 +439,24 @@ public class Node {
 			if(val < 0) //start of new box
 				box = activeGBPars[(int) (-val - 1)];
 			else { //[i] = lin id, [i + 1] = num moving
-				if(Runner.settings.CTRL.SAVE_BIRTHHOUR) {
+
+				if(Runner.settings.ctrl.saveBirthHour) {
 					box.addExt(new long[] {val, from1[i + 1], from1[i + 2]} );
 					i++;
 				}	
 				else
 					box.addExt(new long[] {val, from1[i + 1]} );
+				
+				//save t_opt
+				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
+					long temp = from1[i + (Runner.settings.ctrl.saveBirthHour ? 3 : 2)];
+					Runner.runState.tempLins.put(val, 
+								(float) ((double)temp / (double)Runner.settings.sci.tempGranularity)
+							);
+					i++;
+				}
+
+				
 				i++;
 				
 			}

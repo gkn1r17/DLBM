@@ -13,24 +13,22 @@ import transportMatrix.GridBox;
 
 public class RunState {
 
-		/**NOT THREAD SAFE Complete list of grid boxes on this machine.*/
-		final ArrayList<GridBox> activeBoxs;
+	
+		/**Format for dates used written at start of log and in file names*/
+		public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd-MM-yyyy HH-mm-ss");
+
 		//TODO Alternative implementation:
 			//1) T_opt in Lineage{}: more "logical" in OOP sense and no need for concurrent collection
 				//BUT - longer MPI messages and memory cost
 				//	  - existing method could be extended for arbitrary additional Lineage attributes
 		/**T_opt of each lineage - <Lineage ID, T_opt>.*/
 		public final ConcurrentHashMap<Long,Float> tempLins;
-		/**Whether simulation has completed.*/
-		boolean finished = false;
-		/**Format for dates used written at start of log and in file names*/
-		public static final SimpleDateFormat SDF = new SimpleDateFormat("dd-MM-yyyy HH-mm-ss");
 
 		
 
 		/**Prefix for all output filenames of format: 
 		 		* [filename specified FILE_OUT] + "_T" + startTimeStr */
-		public final String simulationName;
+		public final String simName;
 		/**Simulation start time from System.currentTimeMillis() and synchronised across machines.*/
 		public final long startTime;
 		/**startTime formatted for filenames*/
@@ -42,6 +40,12 @@ public class RunState {
 		/**Current simulation day.*/
 		public long day;
 		
+		/**NOT THREAD SAFE Complete list of grid boxes on this machine.*/
+		final ArrayList<GridBox> activeBoxes;
+		/**Whether simulation has completed.*/
+		boolean finished = false;
+
+		
 		/**
 		 * 
 		 * @param activeBoxs
@@ -52,12 +56,12 @@ public class RunState {
 		 */
 		public RunState(ArrayList<GridBox> activeBoxs, ConcurrentHashMap<Long, Float> tempLins, 
 												long startTime, String simulationName, int seed) {
-			this.activeBoxs = activeBoxs;
+			this.activeBoxes = activeBoxs;
 			this.tempLins = tempLins;
 			this.startTime = startTime;
 			this.seed = seed;
-			this.simulationName = simulationName;
-			this.startTimeStr = SDF.format(new Date(startTime));
+			this.simName = simulationName;
+			this.startTimeStr = DATE_FORMAT.format(new Date(startTime));
 
 		}// 
 		

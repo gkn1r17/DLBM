@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.IntStream.Builder;
 
@@ -65,6 +66,8 @@ public class Runner {
 	public static RunnerParallelization runParallel;
 	/**Configuration variables loaded from ini files (default.ini and additional ini files).*/
 	public static Config settings;
+	/**Starting time for simulation*/
+	public static long startHour;
 	//***
 
 
@@ -86,6 +89,7 @@ public class Runner {
 		runState = null;
 		runParallel = null;
 		settings = null;
+		startHour = 0;
 		//
 		
 		
@@ -149,26 +153,20 @@ public class Runner {
 		long loadedStartTime = 0;
 
 		//Initialise lineages either...	
-		if(settings.CTRL.LOAD_FILE != null || settings.CTRL.LOAD_HOUR > 0)         //...from end of previous run
-			if(settings.CTRL.LOAD_HOUR > 0 && settings.CTRL.LOAD_FILE != null) {
+		if(settings.ctrl.loadFile != null) {         //...from end of previous run
+			loadedStartTime = getLoadedStartTime(); //get real world time simulated started
+			String loadName = settings.ctrl.loadFile;
 				
-				loadedStartTime = getLoadedStartTime();
-				String loadName = settings.CTRL.LOAD_FILE + "_T" + RunState.SDF.format(new Date(loadedStartTime));
+			if(loadedStartTime > 0) //time not include in filename parameter
+				loadName = loadName + "_T" + RunState.DATE_FORMAT.format(new Date(loadedStartTime));
+			else //time included in filename parameter
+				loadedStartTime = -loadedStartTime;
+			
+			if(startHour > 0) //load from specified hour
 				activeBoxs = FileIO.loadDay(loadName, activeBoxsArr,  tempLins);
-				
-				if(settings.SCI.MUTATION > 0) {
-					long[] maxMutnums = Phylogeny.loadMutants(loadName, allBoxs, false, settings.CTRL.LOAD_HOUR); 
-					for(GridBox box : activeBoxs) {
-						box.addLoadedPhylogeny(new Phylogeny(box.id, maxMutnums[box.id] + 1) );
-					}
-				}
-				
-				Arrays.asList(activeBoxsArr);
-			}
-			else {
-				throw new Exception("To load a previous run "
-						+ "set both LOAD_DAY and FILE_LOAD ");
-			}
+			else //load from checkpoint
+				activeBoxs = FileIO.loadCheckpoint(loadName, activeBoxsArr, tempLins);
+		}
 		else {                                                          //...or from initialisation state
 			activeBoxs = new ArrayList<GridBox>();
 			for(GridBox box : activeBoxsArr) {
@@ -181,8 +179,13 @@ public class Runner {
 		
 		long startTime = runParallel.getClusterStartTime();
 		
-		String simulationName =  settings.CTRL.SAVE_FILE + "_T" + RunState.SDF.format(new Date
-				(loadedStartTime == 0 ? startTime : loadedStartTime));
+		String simulationName =  settings.ctrl.saveFile + "_T";
+		
+		if(settings.ctrl.saveFile.contains("NO_DATE"))
+			simulationName =  RunState.DATE_FORMAT.format(0);
+		else
+			simulationName =  simulationName + RunState.DATE_FORMAT.format(new Date
+					(loadedStartTime == 0 ? startTime : loadedStartTime));
 		
 		return new RunState (activeBoxs, tempLins, startTime, simulationName, seed);
 	}
@@ -198,17 +201,17 @@ public class Runner {
 		String datePattern = "T([0-9]{2}\\-[0-9]{2}\\-[0-9]{4} [0-9]{2}\\-[0-9]{2}\\-[0-9]{2}?)";
 		
 		//if time specified in filename use that time
-		Matcher loadFileMatcher = Pattern.compile(".*" + datePattern + ".*\\.csv").matcher(settings.CTRL.LOAD_FILE);
+		Matcher loadFileMatcher = Pattern.compile(".*" + datePattern).matcher(settings.ctrl.loadFile);
 		if(loadFileMatcher.find()) {
-			String dateMatch = loadFileMatcher.group(0);
-			return RunState.SDF.parse(dateMatch).getTime();
+			String dateMatch = loadFileMatcher.group(1);
+			return -RunState.DATE_FORMAT.parse(dateMatch).getTime();
 		}
 			
 		
 		
 		//if not then use most recent run
-		String loadDir = Runner.settings.LOAD_DIR;
-		Pattern pattern = Pattern.compile(Runner.settings.CTRL.LOAD_FILE.replace(loadDir + "/", "") 
+		String loadDir = Runner.settings.loadDir;
+		Pattern pattern = Pattern.compile(Runner.settings.ctrl.loadFile.replace(loadDir + "/", "") 
 												+ "_" + datePattern + ".*\\.csv", Pattern.CASE_INSENSITIVE);
 		
 		ArrayList<Matcher> patternMatches = Stream.of(new File(loadDir).listFiles())
@@ -221,13 +224,13 @@ public class Runner {
 		for(Matcher match : patternMatches) {
 			if(match.find()) {
 				String dateMatch = match.group(1);
-				long actualTimestamp = RunState.SDF.parse(dateMatch).getTime();
+				long actualTimestamp = RunState.DATE_FORMAT.parse(dateMatch).getTime();
 				maxTime = Math.max(actualTimestamp, maxTime);
 			}
 		}
 		
 		if(maxTime == 0)
-			throw new Exception("Can't find load file " + settings.CTRL.LOAD_FILE);
+			throw new Exception("Can't find load file " + settings.ctrl.loadFile);
 		
 		return maxTime;
 	}
@@ -239,9 +242,9 @@ public class Runner {
 	 */
 	private static int setupRandom() throws IOException {
 		//Setup seed	
-		int seed = settings.CTRL.SEED == -1 
+		int seed = settings.ctrl.seed == -1 
 					?    runParallel.synchSeeds(new Random().nextInt())          //initialise randomly from current time, ensuring consistent across distributed nodes
-					:    settings.CTRL.SEED; 
+					:    settings.ctrl.seed; 
 									                  //initialise to specified seed
 		return seed;
 	}
@@ -254,13 +257,13 @@ public class Runner {
 	 */
 	private static ArrayList<GridBox> setupTM(ConcurrentHashMap<Long, Float> tempLins) throws Exception {
 		GridBox[] boxs;
-		if(settings.TM.BUILD_TM)
+		if(settings.tm.buildTM)
 				boxs = MakeArtificialTM.makeUniformTM(); 
 		else {
 		
-				boxs = FileIO.loadTM(settings.SCI.TM_FILE,  //TM configuration
-							FileIO.loadDoubleFile(settings.SCI.VOL_FILE), //Volumes of each location
-							FileIO.loadDoubleFile(settings.SCI.TEMP_FILE), //Temp of each location
+				boxs = FileIO.loadTM(settings.sci.tmFile,  //TM configuration
+							FileIO.loadDoubleFile(settings.sci.volFile), //Volumes of each location
+							FileIO.loadDoubleFile(settings.sci.tempFile), //Temp of each location
 							true
 						);
 		}
@@ -271,10 +274,10 @@ public class Runner {
 		
 
 		//setup locations
-		for(GridBox box : boxs) 
+		for(GridBox box : boxs) { 
 			box.initIDSizeTemp(tempLins); //establish which lineage ids are associated with which locations 
 															//and (if selective) their thermal optima
-		
+		}
 		return boxList;
 	}
 
@@ -294,18 +297,20 @@ public class Runner {
 		long hour = 0;
 		long day = 0;
 		Output out = new Output();
-		ArrayList<GridBox> activeBoxs = null;
+		ArrayList<GridBox> activeBoxes = null;
 		try {
 			
 			
-			activeBoxs = runState.activeBoxs;
+			activeBoxes = runState.activeBoxes;
 			
 					//////////////// OUTPUT /////////////////
 					//saves/reports data at t=0 (if specified in SAVE_TIMESTEPS_FILE)
 					//prints starting time
 					//gets when next to save/report
-					long[] saveReport = out.startOutput(activeBoxs, 
-														runParallel.calcGlobalDiversity(activeBoxs),
+					long[] allLineages = runParallel.getAllLineageIDs(activeBoxes, startHour);
+			
+					long[] saveReport = out.startOutput(activeBoxes, 
+															allLineages.length,
 														 runParallel.amIController());
 					long saveNext = saveReport[0];
 					long reportNext = saveReport[1];
@@ -315,16 +320,24 @@ public class Runner {
 					System.out.println("Seed: " + runState.seed );
 
 					long lastTime = runState.startTime;
+					char checkLetter = 'A';
+					int checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
 					///////////////////////////////////////////
 
 			//initialise selective if needed
 			int tempChangesPerYear = 0;
 			int tempTidx = 0;
-			if(settings.SCI.TEMP_FILE != null)
-				tempChangesPerYear = activeBoxs.get(0).getTempChangesPerYear();
+			if(settings.sci.tempFile != null)
+				tempChangesPerYear = activeBoxes.get(0).getTempChangesPerYear();
 			
-			int duration = settings.CTRL.DURATION_DAY * 24;
-			for(hour = (long) (settings.CTRL.LOAD_HOUR + settings.SCI.DISP_HOURS);  hour <= duration  ; hour += settings.SCI.DISP_HOURS) {
+			int duration = settings.ctrl.durationDay * 24;
+			
+			
+			//******************************************************************
+			//**************************** MAIN RUN LOOP ***********************
+			//******************************************************************
+			
+			for(hour = (long) (startHour + settings.sci.dispHours);  hour <= duration  ; hour += settings.sci.dispHours) {
 				
 				
 				//get current day/hour/year
@@ -332,12 +345,13 @@ public class Runner {
 				int dayOfYear = (int) (day % 365);
 				int hourOfDay = (int) (day == 0 ? hour : (int)(hour % (day * 24)));
 				
+				checkpointCounter -= settings.sci.dispHours;
 				
 				runState.day = day;
 				runState.hour = hour;
 				
 				//find out which temperature currently on
-				if(settings.SCI.TEMP_FILE != null) {
+				if(settings.sci.tempFile != null) {
 					tempTidx = (int) Math.floor(dayOfYear / (365.0 / tempChangesPerYear)  );
 					if(tempTidx == tempChangesPerYear)
 						tempTidx --;
@@ -353,41 +367,54 @@ public class Runner {
 							
 							//check if saving interval and if so save to file
 							if(hour == saveNext)
-									saveNext = out.save(hour, activeBoxs);
+									saveNext = out.save(hour, activeBoxes);
 							
 							//check if saving interval and if so save to file
 							if(hour == saveMutantNext)
-									saveMutantNext = out.saveMutants(hour, activeBoxs);
+									saveMutantNext = out.saveMutants(hour, activeBoxes);
 
 							
 							//check if reporting interval and if so report to screen/log
 							if(hour == reportNext) {
-								    int globalDiversity = runParallel.calcGlobalDiversity(activeBoxs);
-								    reportNext = out.report(hour, activeBoxs, globalDiversity);
-							        if(settings.CTRL.STOP_AT_1 && globalDiversity == 1)
+								    allLineages = runParallel.getAllLineageIDs(activeBoxes, hour);
+									
+								    if(Runner.settings.isSelective && allLineages.length > 0) //for speed/memory ensure only store temperatures of surviving lineages
+										SelLineage.trimTempArray(allLineages);
+								    
+								    int globalDiversity = allLineages.length;
+								    reportNext = out.report(hour, activeBoxes, globalDiversity);
+							        if(settings.ctrl.stopAt1 && globalDiversity == 1)
 							        	break;
 							        
-							        if(settings.CTRL.DEBUG) {
-							        	if(settings.SCI.MUTATION > 0) {
+							        if(settings.ctrl.debugMutants) {
+							        	if(settings.sci.mutation > 0) {
 								        	if(runParallel.isDistributed())
 								        		System.err.println("Can't currently debug mutation when distributed."
 								        				+ "Instead please test locally and compare results.");
 								        	else
-								        		out.debug.debugMutation(globalDiversity, runState.activeBoxs, hour);
+								        		out.debug.debugMutation(globalDiversity, runState.activeBoxes, hour);
 							        	}else {
 							        		System.out.println("Not debugging mutation as MUTATION = 0");
 							        	}
 							        }
 							}
-//							
-//							
-							//checkpoint before getting kicked off cluster
-							if ((System.currentTimeMillis() - runState.startTime) / 1000.0 / 3600.0 > (settings.CTRL.CHECKPOINT_HOURS * 0.99))
-								out.checkPoint(hour, activeBoxs);
+
+
+							////////// CHECKPOINTING
+							if (checkpointCounter <= 0) {
+								out.checkPoint(hour, activeBoxes, checkLetter);
+								if(checkLetter == 'A')
+									checkLetter = 'B';
+								else {
+									checkLetter = 'A';
+									checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
+								}
+							}
+							//
 			
 							//just to show hasn't frozen
 							double secondsTaken = (System.currentTimeMillis() - lastTime) / 1000.0;
-							if (secondsTaken > settings.CTRL.TIME_THRESH && runParallel.amIController()) { //report if taken too long
+							if (secondsTaken > settings.ctrl.timeThresh && runParallel.amIController()) { //report if taken too long
 								System.out.println("(I'm still alive) day: " + day + "hr" + hourOfDay + ", year " + Math.floorDiv(day, 365));
 								lastTime = System.currentTimeMillis();
 							}
@@ -395,6 +422,8 @@ public class Runner {
 							////////////////////////////////////////////////////////////
 
 			}
+			//***************************** END OF RUN LOOP 
+			
 			
 			
 			runState.day = (int) Math.floorDiv(hour, 24);
@@ -412,7 +441,7 @@ public class Runner {
 		}
 		
 		try {
-			out.finalOutput(runState.simulationName, activeBoxs);
+			out.finalOutput(runState.simName, activeBoxes);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -427,14 +456,45 @@ public class Runner {
 	//////////////////////////////////////////////////////////
 
 	
-
+	/**Check simulation has finished and return list of locations (activeBoxes) in format for testing
+	 * (wrapped in GridBoxComparison)
+	 * 
+	 * @return
+	 * @throws Exception
+	 */
 	public static List<GridBoxForComparison> getFinalResults() throws Exception {
 		if(!runState.finished)
 			throw new Exception("Fatal Exception: Attempt to get final results before simulation finished");
 		
-		return runState.activeBoxs.stream().map
+		return runState.activeBoxes.stream().map
 		(box -> new GridBoxForComparison(box)).distinct().collect(Collectors.toList());
 	}
+
+	/**Check simulation has finished and return list of locations (activeBoxes)
+	 * 
+	 * @return
+	 * @throws Exception
+	 */
+	public static ArrayList<GridBox> getFinalBoxes() throws Exception {
+		if(!runState.finished)
+			throw new Exception("Fatal Exception: Attempt to get final results before simulation finished");
+		
+		return runState.activeBoxes;
+	}
+
+	/**Get unique list of lineages
+	 * 
+	 * @param activeBoxes complete list of locations
+	 * @return
+	 */
+	public static long[] getAllLins(List<GridBox> activeBoxes) {
+		// TODO Auto-generated method stub
+		return activeBoxes.stream().flatMapToLong(box -> box.streamLinNums())
+				.distinct().toArray();
+	}
+	
+
+
 
 
 

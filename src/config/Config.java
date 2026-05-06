@@ -1,3 +1,6 @@
+package config;
+
+
 /**Manages config variables from ini files/command line:
  * 
  * 1) Creates IniFileReader for reading Ini files
@@ -18,7 +21,6 @@
  * 
  */
 
-package config;
 
 import java.io.File;
 import java.util.Arrays;
@@ -35,13 +37,13 @@ public class Config {
 	
 	//------- CONTAINERS FOR DIRECT FROM INI (NOT CALCULATED) SETTINGS
 	/**Contains scientific settings loaded from ini/command line*/
-	public final SciConfig SCI;
+	public final SciConfig sci;
 	/**Contains non-scientific ("control" e.g. IO/timestepping/parallelization) 
 	 * settings loaded from ini/command line */
-	public final ControlConfig CTRL;
+	public final ControlConfig ctrl;
 	/**Contains setting loaded from ini/command line for artificial TM
 	 * (not used in most simulations)*/
-	public final ArtificialTMConfig TM;
+	public final ArtificialTMConfig tm;
 	//---
 	
 	
@@ -49,32 +51,33 @@ public class Config {
 	
 	//------------- CALCULATED SCIENTIFIC SETTINGS
 	/**growth rate per timestep calculated from GROWTH_RATE_DAY*/
-	public final double GROWTH_RATE;
+	public final double growthRate;
 	/**mortality per timestep calculated from GROWTH_RATE_DAY*/
-	public final double MORTALITY;
+	public final double mortality;
 	/**growth steps per dispersal timestep*/
-	public final double GROWTH_PER_DISP;
+	public final double growthPerDisp;
 	/**starting population of each location (grid box) divided by K*/
 	/**should be equilibrium population, i.e. the population at which growth == mortality*/
-	public final double INITIAL_P;
+	public final double initialP;
 	/**number of locations in TM
 	 * Normally equal to value in ini but calculated if artificial TM used*/
-	public final int NUM_BOXES;
-	public final boolean IS_SELECTIVE;
+	public final int numBoxes;
+	public final boolean isSelective;
 	//-------------- CALCULATED CONTROL SETTINGS
+	public final long maxMutantOffset;
 	/**Internal value (don't change) controlling lineage ID's
 	 * to ensure even with new mutants there are no overlapping ID's*/
-	public final long MUTANT_OFFSET;
+	public final long mutantOffset;
 	/**hour timesteps extracted from SAVE_TIMESTEPS_DAY*/
-	public final long[] SAVE_TIMESTEPS_ARR;
+	public final long[] saveTimestepsArr;
 	/**hour timesteps extracted from REPORT_TIMESTEPS_DAY*/
-	public final long[] REPORT_TIMESTEPS_ARR;
+	public final long[] reportTimestepsArr;
 	/**hour timesteps extracted from MUTANT_TIMESTEPS_DAY*/
-	public final long[] MUTANT_TIMESTEPS_ARR;
+	public final long[] mutantTimestepsArr;
 	/**directory from LOAD_FILE*/
-	public final String LOAD_DIR;
+	public final String loadDir;
 	/**directory from SAVE_FILE*/
-	public final String SAVE_DIR;
+	public final String saveDir;
 	//---
 	
 	
@@ -95,74 +98,75 @@ public class Config {
 		
 		
 		
-		SCI = new SciConfig(iniFileReader);
-		CTRL = new ControlConfig(iniFileReader);
-		TM = new ArtificialTMConfig(iniFileReader);
+		sci = new SciConfig(iniFileReader);
+		ctrl = new ControlConfig(iniFileReader);
+		tm = new ArtificialTMConfig(iniFileReader);
 		
 		//---------- SCIENTIFIC CALCULATED
-		MORTALITY = CTRL.TRACER_MODE
+		mortality = ctrl.tracerMode
 					?	0
-					:	SCI.MORTALITY_DAY * (SCI.GROWTH_HOURS / 24.0);
+					:	sci.mortalityDay * (sci.growthHours / 24.0);
 		
-    	GROWTH_RATE = CTRL.TRACER_MODE 
+    	growthRate = ctrl.tracerMode 
     				  ?   0 	  
-    			      :   SCI.GROWTH_RATE_DAY * (SCI.GROWTH_HOURS / 24.0);
-    	GROWTH_PER_DISP = SCI.DISP_HOURS / SCI.GROWTH_HOURS;
+    			      :   sci.growthRateDay * (sci.growthHours / 24.0);
+    	growthPerDisp = sci.dispHours / sci.growthHours;
     	
-    	INITIAL_P = SCI.K * 
-    				( SCI.TOP_DOWN 
+    	initialP = sci.K * 
+    				( sci.topDown 
     				  ?    1.0
-    			      :    1 - (SCI.GROWTH_RATE_DAY / SCI.MORTALITY_DAY) );
+    			      :    1 - (sci.growthRateDay / sci.mortalityDay) );
 
-		NUM_BOXES = TM.BUILD_TM 
-					?	TM.TM_NUM_COLS * TM.TM_NUM_ROWS
-					:   SCI.NUM_BOXES;
+		numBoxes = tm.buildTM 
+					?	tm.tmNumCols * tm.tmNumRows
+					:   sci.numBoxes;
 
     	
 
 		
 		//------------- CONTROL CALCULATED
-		MUTANT_OFFSET = (int) Math.floor(CTRL.MUTANT_MAX_OFFSET / NUM_BOXES);
+		mutantOffset = (int) Math.floor(Integer.MAX_VALUE / numBoxes);
+		maxMutantOffset = mutantOffset * numBoxes;
 
     	//TODO currently input only allowed in days
 		//for back compatibility with old setup,
 		//Now using hours internally. Ultimately should make consistent.
-		SAVE_TIMESTEPS_ARR = CTRL.SAVE_TIMESTEPS_DAY.endsWith(".csv")
+		saveTimestepsArr = ctrl.saveTimestepsDay.endsWith(".csv")
 							//option 1 = input as csv filename containing column with timeseries			
-							?  FileIO.loadLongSet(CTRL.SAVE_TIMESTEPS_DAY).stream().mapToLong(e -> e * 24)
+							?  FileIO.loadLongSet(ctrl.saveTimestepsDay).stream().mapToLong(e -> e * 24)
 														.sorted().toArray() 
                              //option 2 = input as list directly written in .ini file e.g. SAVE_TIMESTEPS_DAY=0,35,365 														
-                            :  Arrays.asList(CTRL.SAVE_TIMESTEPS_DAY.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
+                            :  Arrays.asList(ctrl.saveTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
 														.sorted().toArray();
 		
-		REPORT_TIMESTEPS_ARR = CTRL.REPORT_TIMESTEPS_DAY.endsWith(".csv")
-				               ?   FileIO.loadLongSet(CTRL.REPORT_TIMESTEPS_DAY).stream().mapToLong(e -> e * 24) 
+		reportTimestepsArr = ctrl.reportTimestepsDay.endsWith(".csv")
+				               ?   FileIO.loadLongSet(ctrl.reportTimestepsDay).stream().mapToLong(e -> e * 24) 
 														.sorted().toArray()
-				               :   Arrays.asList(CTRL.REPORT_TIMESTEPS_DAY.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
+				               :   Arrays.asList(ctrl.reportTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
 														.sorted().toArray();
 	
 						
 		
-		MUTANT_TIMESTEPS_ARR = CTRL.MUTANT_TIMESTEPS_DAY.toLowerCase().equals("none")
+		mutantTimestepsArr = ctrl.mutantTimestepsDay.toLowerCase().equals("none")
 				              //"option 0" = when not saving mutants at all or not applying mutation
 							  ?    null 
 				              :		(    //... and when saving mutants:
-				            		    CTRL.MUTANT_TIMESTEPS_DAY.endsWith(".csv")
-				            		    ?    FileIO.loadLongSet(CTRL.MUTANT_TIMESTEPS_DAY).stream().mapToLong(e -> e * 24) 
+				            		    ctrl.mutantTimestepsDay.endsWith(".csv")
+				            		    ?    FileIO.loadLongSet(ctrl.mutantTimestepsDay).stream().mapToLong(e -> e * 24) 
 																	.sorted().toArray()
-							            :    Arrays.asList(CTRL.MUTANT_TIMESTEPS_DAY.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
+							            :    Arrays.asList(ctrl.mutantTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
 																	.sorted().toArray()
 										);
 				            		  
 				            		  
-		IS_SELECTIVE = SCI.TEMP_FILE != null;
+		isSelective = sci.tempFile != null;
 		
 
-		LOAD_DIR = CTRL.LOAD_FILE == null 
+		loadDir = ctrl.loadFile == null 
 					?	null
-					:	new File(CTRL.LOAD_FILE).getParent();
-		SAVE_DIR = new File(CTRL.SAVE_FILE).getParent();
-		new File(SAVE_DIR).mkdir();
+					:	new File(ctrl.loadFile).getParent();
+		saveDir = new File(ctrl.saveFile).getParent();
+		new File(saveDir).mkdir();
 		//----
 		
 		
@@ -202,6 +206,8 @@ public class Config {
 	static String parseFilename(String inFile) {
 		if(inFile.toLowerCase().equals("none"))
 			return null;
+		inFile = inFile.replace("*", " ");
+		
 		return inFile;
 	}
 

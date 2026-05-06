@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.TreeSet;
 
+import control.Runner;
 import lineages.Lineage;
 import transportMatrix.GridBox;
 
@@ -39,8 +40,11 @@ public class GridBoxForComparison implements Comparable<GridBoxForComparison>{
 		Iterator<Lineage> iter = pop.iterator();
 		Iterator<Lineage> othIter = othPop.iterator();
 		while(iter.hasNext()) {
-			if(!Arrays.equals(iter.next().getDetailsArr(),
-								othIter.next().getDetailsArr()))
+			Lineage lin = iter.next();
+			Lineage othLin = othIter.next();
+			if(lin.getId() != othLin.getId())
+				return false;
+			if(lin.size != othLin.size)
 				return false;
 			
 		}

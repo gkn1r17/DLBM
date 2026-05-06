@@ -93,8 +93,6 @@ public class IniFileReader {
 		//filename follows "SETTINGS" in command line args
 		Section cmdSect = null;
 		for(int i =0; i < args.length; i+= 2) {
-			
-			
 			if(args[i].toLowerCase().trim().equals("settings")) { //read settings file
 				String settingsFileName = args[i + 1];
 				
@@ -136,7 +134,9 @@ public class IniFileReader {
 				
 			}
 			else {
-			    
+			    System.out.println(i + "," + args[i]);
+			    System.out.println(i + "(+1)," + args[i + 1]);
+
 				//TODO properly integrate command line into sections
 				//for now will check section "commandLine" first (as has precedence over settings files)
 			    if (cmdSect == null) {
@@ -145,7 +145,8 @@ public class IniFileReader {
 						System.out.println("*** Reading command line settings *** ");
 
 			    }
-		        cmdSect.put(args[i].toUpperCase().trim(), args[i + 1]);
+			    if(i + 1 < args.length)
+			    	cmdSect.put(args[i].toUpperCase().trim(), args[i + 1]);
 
 			}
 				

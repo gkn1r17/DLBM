@@ -31,77 +31,9 @@ public class TestJUnit {
 	
 
 	
-	/**Runs a few sanity checks for mutation i.e. switches off mortality and checks
-	 * 1) Number of new individuals = number of mutations counted
-	 * 2) Number of new individuals roughly inline with expected mutation rate*/
-	@Test
-	void testMutationSanity() {
-		
-		//DEBUG=TRUE with MUTATION > 0 automatically carries out checks above
-		runSimulation(new String[]{"NUMNODES", "1", 
-				"SETTINGS", "testSettings/testNeutral.ini", 
-				"DURATION_DAY", "100", 
-				"FILE_LOAD", "none",
-				"FILE_OUT", "testMutation/testMutation",
-				"SEED","-1",
-				"SAVE_TIMESTEPS_DAY", "100",
-				"REPORT_TIMESTEPS_DAY", "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,30,40,50,60,70,80,90,100",
-				"MUTANT_TIMESTEPS_DAY","100",
-				"DISP_HOURS", "8",
-				"GROWTH_HOURS","1",
-				//"DISP_SCALER","0",
-				//mutation test specific settings
-				"DEBUG", "true",
-				"GROWTH_RATE_DAY", "0.01",
-				"MUTATION", "0.01",
-				"MORTALITY_DAY", "0",
-				"INIT_LIN_SIZE", "100",
-				"CLUST_FILE", "clusters6386x1.csv"
-				});
-		
-		//load 1
-		runSimulation(new String[]{"NUMNODES", "7", 
-				"SETTINGS", "testSettings/testNeutral.ini", 
-				"DURATION_DAY", "200", 
-				"FILE_LOAD", "testMutation/testMutation",
-				"LOAD_DAY", "100",
-				"FILE_OUT", "testMutation/testMutation",
-				"SEED","-1",
-				"SAVE_TIMESTEPS_DAY", "200",
-				"MUTANT_TIMESTEPS_DAY","200",
-				"REPORT_TIMESTEPS_DAY", "timestepsMonthly.csv",
-				"DISP_HOURS", "8",
-				"GROWTH_HOURS","1",
-				//"DISP_SCALER","0",
-				//mutation test specific settings
-				"DEBUG", "true",
-				"GROWTH_RATE_DAY", "0.001",
-				"MUTATION", "0.001",
-				"MORTALITY_DAY", "0",
-				"INIT_LIN_SIZE", "100"
-				});
-		
-		//load 2
-		runSimulation(new String[]{"NUMNODES", "7", 
-				"SETTINGS", "testSettings/testNeutral.ini", 
-				"DURATION_DAY", "300", 
-				"FILE_LOAD", "testMutation/testMutation",
-				"LOAD_DAY", "200",
-				"FILE_OUT", "testMutation/testMutation",
-				"SEED","-1",
-				"SAVE_TIMESTEPS_DAY", "300",
-				"REPORT_TIMESTEPS_DAY", "timestepsMonthly.csv",
-				"DISP_HOURS", "8",
-				"GROWTH_HOURS","1",
-				//"DISP_SCALER","0",
-				//mutation test specific settings
-				"DEBUG", "true",
-				"GROWTH_RATE_DAY", "0.001",
-				"MUTATION", "0.001",
-				"MORTALITY_DAY", "0",
-				"INIT_LIN_SIZE", "100"
-				});
-	}
+	private static final boolean MAKING_NEW_BASELINE = true;
+
+
 	
 	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
 	@Test
@@ -123,27 +55,46 @@ public class TestJUnit {
 
 	}
 	
-//	TODO
-//	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
-//	@Test
-//	void testMutationAgainstBaseline() {
-//		
-//		//neutral
-//		testSimulation("testSettings/testMutation.ini", "testResults/testNeutralB", 
-//				"testResults/testNeutral",  new String[] {});
-//
-//	}
-//	
-//	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
-//	@Test
-//	void testMutationSelectiveBaseline() {
-//		
-//		//neutral
-//		testSimulation("testSettings/testMutationSelective.ini", "testResults/testNeutralB", 
-//				"testResults/testNeutral",  new String[] {});
-//
-//	}
+
+	/**Runs neutral simulation and compares to previous run with same seed and same settings*/
+	@Test
+	void testMutationAgainstBaseline() {
+		
+		//neutral
+		testSimulation("testSettings/testMutation.ini", "testResults/testNeutralB", 
+				"testResults/testNeutral",  new String[] {});
+
+	}
+
+	/**Runs mutation+selective simulation and compares to previous run with same seed and same settings*/
+	@Test
+	void testMutationSelectiveBaseline() {
+		
+		//neutral
+		testSimulation("testSettings/testMutationSelective.ini", "testResults/testMutationSelectiveB", 
+				"testResults/testMutationSelective",  new String[] {});
+
+	}
 	
+	/**Carry out set of simulations for one "scenario" (e.g. neutral without mutation, selective with mutation etc.).
+	 * Compares new results with pre saved ("baseline") results
+	 * Process is:
+	 * 
+	 *  (optional make new baseline)
+	 *  Run simulation with same seed as baseline
+	 *  Load baseline
+	 *  check matches
+	 *  Reload new simulation results
+	 *  check matches (i.e. checking loading works correctly)
+	 *  Run simulation with different seed
+	 *  check doesn't match
+	 *  
+	 * 
+	 * @param settingsFile path to settings file, i.e. follows SETTINGS in command line
+	 * @param outFile filename new results are saved to
+	 * @param benchmarkFile filename for baseline file
+	 * @param otherArgs command args array
+	 */
 	private void testSimulation(String settingsFile, String outFile, String benchmarkFile, String[] otherArgs) {
 		
 		
@@ -154,21 +105,23 @@ public class TestJUnit {
 		int duration = 365;
 		
 		
-		//make baseline
-//		runSimulation(new String[]{"NUMNODES", "1", 
-//				"SETTINGS", settingsFile, 
-//				"DURATION_DAY", "" + duration, 
-//				"FILE_LOAD", "none",
-//				"FILE_OUT", benchmarkFile,
-//				"SEED","100",
-//				//TODO
-//				//test run saves output but for now will
-//				//have to be checked manually
-//				"SAVE_TIMESTEPS_DAY", "timesteps.csv",
-//				"DEBUG", "true",
-//				"CLUST_FILE", "clusters63861.csv"
-//				});
-//		
+		
+		if(MAKING_NEW_BASELINE) {
+			//make baseline
+			runSimulation(new String[]{"NUMNODES", "1", 
+					"SETTINGS", settingsFile, 
+					"DURATION_DAY", "" + duration, 
+					"FILE_LOAD", "none",
+					"FILE_OUT", benchmarkFile,
+					"SEED","100",
+					//TODO
+					//test run saves output but for now will
+					//have to be checked manually
+					"SAVE_TIMESTEPS_DAY", "timesteps.csv",
+					"DEBUG", "true",
+					"CLUST_FILE", "clusters63861.csv"
+					});
+		}
 		
 		
 		
@@ -240,31 +193,25 @@ public class TestJUnit {
 	
 	
 	
-	/**
+	/**Run one simulation
 	 * 
-	 * @param settingsFile
-	 * @param numNodes
-	 * @param duration
-	 * @param seedString
-	 * @param fileName
-	 * @param loading
-	 * @param otherArgs
-	 * @return
+	 * @param args command line args
+	 * @return list of results for each gridbox
 	 */
-	private List<GridBoxForComparison> runSimulation(String[] args) {
+	protected List<GridBoxForComparison> runSimulation(String[] args) {
 		
 		
 		Runner.main(args);
 		
 		//did test run to completion?
-		assert(Runner.runState.day == Runner.settings.CTRL.DURATION_DAY);
+		assert(Runner.runState.day == Runner.settings.ctrl.durationDay);
 		
 		
 		List<GridBoxForComparison> results;
 		try {
 			results = Runner.getFinalResults();
 			//are all locations accounted for?
-			assert(results.size() == Runner.settings.NUM_BOXES);
+			assert(results.size() == Runner.settings.numBoxes);
 			return results;
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -277,6 +224,12 @@ public class TestJUnit {
 	}
 	
 	
+	/**Compare two sets of results are equal
+	 * 
+	 * @param results1 list of results for simulation 1 (each gridbox)
+	 * @param results2 list of results for simulation 2 (each gridbox)
+	 * @return
+	 */
 	private boolean areEqual(List<GridBoxForComparison> results1, 
 			List<GridBoxForComparison> results2) {
 		

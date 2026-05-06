@@ -14,13 +14,13 @@ import transportMatrix.Phylogeny;
 
 public class NeutralLineage extends Lineage {
 
-	protected NeutralLineage(int sz, long id, long birthHour) {
-		super(sz, id, birthHour);
+	protected NeutralLineage(int sz, long id) { //, long birthHour) {
+		super(sz, id); //, birthHour);
 	}
 	
 	@Override
 	public NeutralLineage copy(int num) {
-		return new NeutralLineage(num, id, birthHour);
+		return new NeutralLineage(num, id); //, birthHour);
 
 	}
 	
@@ -30,10 +30,13 @@ public class NeutralLineage extends Lineage {
 	}
 
 	@Override
-	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
-			Binomial bn, DRand rd, long hour) throws Exception {
-			for(int i =0; i < numMuts; i++)
-				mutants.add(new NeutralLineage(1, phylogeny.getNextMutantCounter(), hour));
+	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants, Binomial bn, DRand rd, long hour) { 
+			for(int i =0; i < numMuts; i++) {
+				long mutID = phylogeny.getNextMutantCounter();
+				//System.out.println("phylo," + id + "," +  mutID);
+				
+				mutants.add(new NeutralLineage(1, mutID)); //, hour));
+			}
 	}
 
 
