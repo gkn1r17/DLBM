@@ -31,63 +31,77 @@
     <section class="card">
         <h2>Environmental Selection</h2>
         <h3>Changing the selection function</h3>
-        <p>
-            Selection-related settings live in <code>SciConfig</code>, including <code>W</code>, <code>TEMP_FILE</code>,
-            <code>TEMP_START_RANGE</code>, and <code>TEMP_MUTINTV</code>. If you want to alter how fitness depends on environment,
-            start by tracing the selective lineage and grid-box logic that uses lineage temperature optima.
-        </p>
-        <h3>Adding additional selection functions</h3>
-        <p>
-            A practical approach is to introduce a new strategy or branch alongside the existing selective logic rather than modifying
-            every call site at once. Keep the configuration switch explicit so runs remain reproducible.
-        </p>
+        <pre>
+            <code>lineages.SelLineage.tempFunc(...)</code>
+        </pre>
     </section>
 
     <section class="card">
         <h2>Dispersal</h2>
         <p>
-            Dispersal behaviour is centered in the <code>dispersal</code> package and tied to the transport matrix representation.
-            Changes here can affect both local correctness and distributed communication, so small validation runs are recommended first.
+            <pre>
+                <code>transportMatrix.GridBox.dispBinomial(...)</code>
+            </pre>
+            numToEach[...] stores numbers moving from each potential sink from this source (not counting elements that don't move i.e. source==sink). <br>
+            </p>
+    </section>
+
+
+    <section class="card">
+        <h2>Initialisation / Initialising Environmental Selection</h2>
+        <p>
+            The following method controls population size, lineage IDs and population of each lineage. It also controls the distribution of t_opt across the lineages "###TEMPERATURE STUFF"
+            <pre>
+                <code>transportMatrix.GridBox.initIDSizeTemp(...)</code>
+            </pre>
+            The following method actually creates the lineages and initialises carrying capacity.
+            <pre>
+                <code>transportMatrix.GridBox.initPop(...)</code>
+            </pre>
+
         </p>
     </section>
 
-    <section class="card">
-        <h2>Mutation</h2>
+        <section class="card">
+        <h2>Main Ecology Loop</h2>
         <p>
-            Mutation rate is configured through <code>MUTATION</code>. Mutation-related output and debug checks are coordinated through
-            <code>inputOutput.Output</code> and the phylogeny utilities. If you change mutation logic, also review mutant save timing and debug tooling.
+            Controls growth/mortality for each lineage in GridBox
+            <pre>
+                <code>transportMatrix.GridBox.growDieMutateAll(...)</code>
+            </pre>
         </p>
     </section>
 
-    <section class="card">
-        <h2>Growth / Mortality</h2>
-        <p>
-            Growth and mortality are derived from daily rates and converted internally to timestep-scale values in <code>Config</code>.
-            Any changes should preserve consistency between the configured daily rates and the timestep sizes.
-        </p>
-    </section>
+        </section>
 
-    <section class="card">
-        <h2>Initialisation</h2>
+        <section class="card">
+        <h2>Growth / Mortality / Mutation</h2>
         <p>
-            Initial populations are either loaded from previous output or created from the configured initial state.
-            The setup flow in <code>Runner</code> shows where new initialisation pathways can be inserted safely.
+            <pre>
+                <code>lineages.Lineage.growDie(...)</code>
+            </pre>
         </p>
     </section>
 
     <section class="card">
         <h2>Additional Dimensions of Diversity</h2>
         <p>
-            To add extra tracked traits such as size class or functional group, plan the change across lineage storage,
-            mutation rules, save/load formats, and comparison tests. This type of extension usually touches both in-memory structures and file formats.
+            New types of Lineage (associated with new information e.g. size) can be added as new classes in the lineages package extending <code>Lineage</code> (see <code>SelLineage</code>) as an example. <br>
+            For initialisation change <code>transportMatrix.GridBox.initIDSizeTemp(...)</code> and <code>transportMatrix.GridBox.initPop(...)</code> <br>
+            Change <code>[My-new-lineage].getDetails(...)</code> to output new information. This will add column to output CSV files.<br>
+            Add to <code>Lineage.makeNew(...)</code><br>
+            Adjust <code>increment</code> in <code>GridBox.addLoadedPop(...)</code> to correctly load new information.<br>
+            If running distributed modify <code>decompileMPImessage</code> <code>compileMPImessage</code> (and if testing locally these methods + "test") so that new information is correctly tranferred between nodes and <code>Lineage.makeNewFromDist(...)</code><br>
+            For storing the new information it can either be done in the new Lineage class and will need to be copied with every dispersal or follow the example of temperature with <code>RunState.tempLins</code> to save memory.
         </p>
     </section>
 
     <section class="card">
-        <h2>Output and Metrics</h2>
+        <h2>Adding new Configuration settings</h2>
         <p>
-            Output currently includes full state saves, abridged time series, checkpoint files, and optional mutant/phylogeny information.
-            New metrics are often easiest to add first to the reporting CSV path and then, if useful, to full save output.
+            Scientific settings should be added to <code>config.SciConfig</code> <br>
+            Control settings should be added to <code>config.ControlConfig</code> <br>
+            Settings dependent on both scientific and control settings should be added directly to <code>config.Config</code> <br>
         </p>
     </section>
 </main>
