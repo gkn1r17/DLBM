@@ -3,8 +3,8 @@
 #SBATCH --time 60:00:00
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1
-#SBATCH --output=blah.out
-#SBATCH --error=blah.err
+#SBATCH --output=conv1.out
+#SBATCH --error=conv1.err
 
 
 echo "convertFiles($1, $2, $3, $4, $5)"
