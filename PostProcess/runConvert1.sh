@@ -5,5 +5,5 @@ for i in 0 36 46 58 73 92 115 145 183 230 290 365 460 578 728 917 1154 1453 1829
 do
     echo running day $i
     
-    sbatch runConvert.slurm \"$1\" \"$2\" \"$3\" \"$4\" $i
+    sbatch runConvert1.slurm \"$1\" \"$2\" \"$3\" \"$4\" $i
 done
