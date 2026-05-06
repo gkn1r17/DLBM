@@ -96,10 +96,11 @@
         <section class="card">
         <h2>Collating</h2>
         <p>
-            1. Modify runConvert1.sh if required : the numbers in the for loop are timestamps (in days) to include in mat file, by default equal to timesteps.csv. (If extra days are in this loop it won't cause an error but make sure all days you need are at least included) <br>
-            2. Run runConvert1.sh using the command using the below example below as a guide. This converts the output for each timestamp from csv to mat. The format of this command are:<br>
+            1. Move the contents of PostProcess to the run folder.<br>
+            2. Modify runConvert1.sh if required : the numbers in the for loop are timestamps (in days) to include in mat file, by default equal to timesteps.csv. (If extra days are in this loop it won't cause an error but make sure all days you need are at least included) <br>
+            3. Run runConvert1.sh using the command using the below example below as a guide. This converts the output for each timestamp from csv to mat. The format of this command are:<br>
                 sh ./runConvert1.sh [path to csvs] [desired output path/name] [name in csvs, including date] [hour-min-second part of name of csvs]<br>
-            3. When this has finished for every timestamp, run runConvert2.sh <br>
+            4. When this has finished for every timestamp, run runConvert2.sh <br>
                 sh ./runConvert2.slurm [path to output] [output name]<br>
             (note these scripts are written for SLURM cluster and will need adjusting if running locally)
         </p>
