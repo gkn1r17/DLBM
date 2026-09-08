@@ -318,6 +318,7 @@ public class Runner {
 					
 					System.out.println("Starting experiment at " + runState.startTimeStr );
 					System.out.println("Seed: " + runState.seed );
+					System.out.println("Initial state: day 0 (year 0.00), extant lineages " + allLineages.length);
 
 					long lastTime = runState.startTime;
 					char checkLetter = 'A';
@@ -402,13 +403,16 @@ public class Runner {
 
 							////////// CHECKPOINTING
 							if (checkpointCounter <= 0) {
-								out.checkPoint(hour, activeBoxes, checkLetter);
+								//BAW out.checkPoint(hour, activeBoxes, checkLetter);
+								int checkpointGlobalDiversity = runParallel.getAllLineageIDs(activeBoxes, hour).length;
+                                                                out.checkPoint(hour, activeBoxes, checkLetter, checkpointGlobalDiversity);
 								if(checkLetter == 'A')
 									checkLetter = 'B';
-								else {
+								else 
 									checkLetter = 'A';
-									checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
-								}
+							
+						  		checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
+								
 							}
 							//
 			

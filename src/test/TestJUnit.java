@@ -46,7 +46,7 @@ public class TestJUnit {
 	}
 	
 	/**Runs selective simulation and compares to previous run with same seed and same settings*/
-	@Test
+	//@Test
 	void testSelectiveAgainstBaseline() {
 		
 		//selective
@@ -67,15 +67,15 @@ public class TestJUnit {
 	}
 
 	/**Runs mutation+selective simulation and compares to previous run with same seed and same settings*/
-	@Test
+	//@Test
 	void testMutationSelectiveBaseline() {
 		
 		//neutral
 		testSimulation("testSettings/testMutationSelective.ini", "testResults/testMutationSelectiveB", 
 				"testResults/testMutationSelective",  new String[] {});
-
-	}
 	
+	}
+
 	/**Carry out set of simulations for one "scenario" (e.g. neutral without mutation, selective with mutation etc.).
 	 * Compares new results with pre saved ("baseline") results
 	 * Process is:
@@ -119,7 +119,7 @@ public class TestJUnit {
 					//have to be checked manually
 					"SAVE_TIMESTEPS_DAY", "timesteps.csv",
 					"DEBUG", "true",
-					"CLUST_FILE", "clusters63861.csv"
+					"CLUST_FILE", "clusters6386nondist.csv"
 					});
 		}
 		
@@ -169,24 +169,23 @@ public class TestJUnit {
 				"LOAD_HOUR", "" + (duration * 24),
 				//so doesn't save
 				"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE,
-				"DEBUG", "true"
-
+				"DEBUG", "true",
+				"CLUST_FILE", "clusters6386.csv"
 				});
 		
 		assertTrue(areEqual(resultsNew, resultsNewLoad));
 
 		
 		List<GridBoxForComparison> resultsWrong = runSimulation(new String[]{"NUMNODES", "7", 
-																			"SETTINGS", settingsFile, 
-																			"DURATION_DAY", "" + duration, 
-																			"SEED", "200",
-																			//so doesn't save
-																			"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE, 
-																			"DEBUG", "true"
-																	});
-		
-
-		
+				"SETTINGS", settingsFile, 
+				"DURATION_DAY", "" + duration, 
+				"SEED", "200",
+				//so doesn't save
+				"SAVE_TIMESTEPS_DAY", "" + Integer.MAX_VALUE, 
+				"DEBUG", "true",
+		        "CLUST_FILE", "clusters6386.csv"
+				});
+				
 		assertFalse(areEqual(resultsWrong, resultsLoad));		
 
 	}

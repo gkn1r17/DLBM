@@ -1,7 +1,9 @@
 #!/bin/bash
 
 #add/remove based on necessary boiler plate code for using java in your system. Must be at least jdk1.8
-module load jdk
+# Load Java via environment modules where available
+if command -v module >/dev/null 2>&1; then module load jdk; fi
+#BAW module load jdk
 #
 
 set -euo pipefail

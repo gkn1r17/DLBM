@@ -210,14 +210,14 @@ public class Output {
 			
 				
 				//report mutant idx for working out age of new individuals
-				System.out.print("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
+				//BAW System.out.print("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
 				reportForCSV.append("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
 				for(GridBox box : activeboxs) { 
-					System.out.print("," + box.getCurrentMutantID());
+					//BAW System.out.print("," + box.getCurrentMutantID());
 					reportForCSV.append("," + box.getCurrentMutantID());
 				}
 				reportForCSV.append("\n");
-				System.out.println();
+				//BAW System.out.println();
 			}
 			
 			
@@ -243,14 +243,16 @@ public class Output {
 	 * @param FILE_OUT 
 	 * @throws Exception
 	 */
-	public void checkPoint(long hour, List<GridBox> activeboxs, char checkLetter) throws Exception {
+	public void checkPoint(long hour, List<GridBox> activeboxs, char checkLetter, int globalDiversity) throws Exception {
+	//BAW public void checkPoint(long hour, List<GridBox> activeboxs, char checkLetter) throws Exception {
 		//all output is currently not in hours but [day]h[hourOfDay] format
 		//for back compatibility as formally only counted days
 		long day = (long) Math.floor(hour / 24);
 		int hourOfDay = (int) (hour - (day * 24));
 		String hourDayString = "" + day + "hr" + hourOfDay; 
 					
-		System.out.println("Checkpointing started");
+		System.out.println("Checkpoint: day " + day + " (year " + String.format("%.2f", day / 365.0) + "), extant lineages " + globalDiversity);
+		//BAW System.out.println("Checkpointing started");
 			
 		for(GridBox box : activeboxs)
 			box.combineImmigrants();
@@ -264,7 +266,7 @@ public class Output {
 		//save local/global diversity over time
 		logToCSV(Runner.runState.simName);
 		
-		System.out.println("Checkpointing completed");
+		//System.out.println("Checkpointing completed");
 
 			
 	}
@@ -290,10 +292,10 @@ public class Output {
 					Arrays.toString(activeboxs.stream().mapToInt(c -> c.getNumLins()).toArray()).replaceAll("(\\[|\\]| )+", "");
 			
 			reportForCSV.append(outStr + "\n");
-			System.out.println(outStr);
+			//BAW System.out.println(outStr);
 			
 			if(Runner.runParallel.amIController()) { //don't report global diversity if not controller
-				System.out.println("global," + globalDiversity);
+				//BAW System.out.println("global," + globalDiversity);
 				reportForCSV.append("global," + globalDiversity + "\n");
 			}
 			
