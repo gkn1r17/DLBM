@@ -104,18 +104,18 @@ public class Config {
 		
 		//---------- SCIENTIFIC CALCULATED
 		mortality = ctrl.tracerMode
-					?	0
-					:	sci.mortalityDay * (sci.growthHours / 24.0);
+					? 0
+					: 1.0 - Math.exp(-sci.mortalityDay * (sci.growthHours / 24.0));      	
 		
-    	growthRate = ctrl.tracerMode 
-    				  ?   0 	  
-    			      :   sci.growthRateDay * (sci.growthHours / 24.0);
-    	growthPerDisp = sci.dispHours / sci.growthHours;
-    	
-    	initialP = sci.K * 
-    				( sci.topDown 
-    				  ?    1.0
-    			      :    1 - (sci.growthRateDay / sci.mortalityDay) );
+		growthRate = ctrl.tracerMode 
+				  ?   0 	  
+				  :   1.0 - Math.exp(-sci.growthRateDay * (sci.growthHours / 24.0));
+
+		growthPerDisp = sci.dispHours / sci.growthHours;
+	
+		initialP = sci.K * ( sci.topDown 
+				  ?    1.0
+				  :    1 - (sci.growthRateDay / sci.mortalityDay) );
 
 		numBoxes = tm.buildTM 
 					?	tm.tmNumCols * tm.tmNumRows
