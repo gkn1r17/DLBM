@@ -62,7 +62,8 @@ public class RunnerParallelization {
 			for(int i =0; i < numNodes; i++)
 				nodes.add(new Node(i, false));
 			
-			System.err.println("WARNING: Couldn't setup distributed FastMPJ network - are you testing locally?");
+			if (numNodes > 1)
+			    	System.err.println("WARNING: Couldn't setup distributed FastMPJ network.");
 		}
 		return(args);
 	}

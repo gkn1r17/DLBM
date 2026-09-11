@@ -131,32 +131,13 @@ public class Config {
     	//TODO currently input only allowed in days
 		//for back compatibility with old setup,
 		//Now using hours internally. Ultimately should make consistent.
-		saveTimestepsArr = ctrl.saveTimestepsDay.endsWith(".csv")
-							//option 1 = input as csv filename containing column with timeseries			
-							?  FileIO.loadLongSet(ctrl.saveTimestepsDay).stream().mapToLong(e -> e * 24)
-														.sorted().toArray() 
-                             //option 2 = input as list directly written in .ini file e.g. SAVE_TIMESTEPS_DAY=0,35,365 														
-                            :  Arrays.asList(ctrl.saveTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
-														.sorted().toArray();
-		
-		reportTimestepsArr = ctrl.reportTimestepsDay.endsWith(".csv")
-				               ?   FileIO.loadLongSet(ctrl.reportTimestepsDay).stream().mapToLong(e -> e * 24) 
-														.sorted().toArray()
-				               :   Arrays.asList(ctrl.reportTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
-														.sorted().toArray();
-	
-						
+		saveTimestepsArr = parseTimesteps(ctrl.saveTimestepsDay);
+		reportTimestepsArr = parseTimesteps(ctrl.reportTimestepsDay);	
 		
 		mutantTimestepsArr = ctrl.mutantTimestepsDay.toLowerCase().equals("none")
 				              //"option 0" = when not saving mutants at all or not applying mutation
 							  ?    null 
-				              :		(    //... and when saving mutants:
-				            		    ctrl.mutantTimestepsDay.endsWith(".csv")
-				            		    ?    FileIO.loadLongSet(ctrl.mutantTimestepsDay).stream().mapToLong(e -> e * 24) 
-																	.sorted().toArray()
-							            :    Arrays.asList(ctrl.mutantTimestepsDay.split(",")).stream().mapToLong(e -> Long.parseLong(e.trim()) * 24)
-																	.sorted().toArray()
-										);
+				              :    parseTimesteps(ctrl.mutantTimestepsDay);
 				            		  
 				            		  
 		isSelective = sci.tempFile != null;
@@ -197,7 +178,21 @@ public class Config {
     	return (loadHour);
 	}
 
-	
+
+	private long[] parseTimesteps(String schedule) throws Exception {
+			if (schedule.endsWith(".csv")) {
+				return FileIO.loadLongSet(schedule).stream()
+						.mapToLong(e -> e * 24)
+						.sorted()
+						.toArray();
+			}
+
+    return Arrays.asList(schedule.split(",")).stream()
+            .mapToLong(e -> Long.parseLong(e.trim()) * 24)
+            .sorted()
+            .toArray();
+}
+
 	/**Get filename or null if filename =none.
 	 * 
 	 * @param inFile
