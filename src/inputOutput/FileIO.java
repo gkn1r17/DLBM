@@ -133,7 +133,7 @@ public class FileIO {
 		
 		
 		//produce regular expression for finding all files
-		inFile = inFile + "s[0-9]+_D" + day + "(hr" + hourOfDay + ")?"+  "_N[0-9]+\\.csv";
+		inFile = inFile + "_D" + day + "(hr" + hourOfDay + ")?" + "_N[0-9]+\\.csv";
 		String filename = inFile.replace(Runner.settings.loadDir + "/", "");
 		
 		

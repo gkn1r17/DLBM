@@ -150,24 +150,19 @@ public class Runner {
 					//boxs not handled on this server set to null to save memory
 		GridBox[] activeBoxsArr = runParallel.setupNodes(allBoxs, rd);
 		
-		long loadedStartTime = 0;
+		String simulationName;
 
-		//Initialise lineages either...	
-		if(settings.ctrl.loadFile != null) {         //...from end of previous run
-			loadedStartTime = getLoadedStartTime(); //get real world time simulated started
+		//Initialise lineages either...
+		if(settings.ctrl.loadFile != null) {         //...from previous run
 			String loadName = settings.ctrl.loadFile;
-				
-			if(loadedStartTime > 0) //time not include in filename parameter
-				loadName = loadName + "_T" + RunState.DATE_FORMAT.format(new Date(loadedStartTime));
-			else //time included in filename parameter
-				loadedStartTime = -loadedStartTime;
-			
+			simulationName = settings.ctrl.loadFile;
+
 			if(startHour > 0) //load from specified hour
-				activeBoxs = FileIO.loadDay(loadName, activeBoxsArr,  tempLins);
+				activeBoxs = FileIO.loadDay(loadName, activeBoxsArr, tempLins);
 			else //load from checkpoint
 				activeBoxs = FileIO.loadCheckpoint(loadName, activeBoxsArr, tempLins);
 		}
-		else {                                                          //...or from initialisation state
+		else {                                       //...or from initialisation state
 			activeBoxs = new ArrayList<GridBox>();
 			for(GridBox box : activeBoxsArr) {
 				if(box != null) {
@@ -175,64 +170,44 @@ public class Runner {
 					activeBoxs.add(box);
 				}
 			}
+
+			long startTime = runParallel.getClusterStartTime();
+			String dateStr = RunState.DATE_FORMAT.format(new Date(startTime));
+			int runNumber = getNextRunNumber(settings.ctrl.saveFile, dateStr);
+
+			simulationName = settings.ctrl.saveFile
+					+ "_" + dateStr
+					+ "_R" + String.format("%04d", runNumber);
 		}
-		
+
 		long startTime = runParallel.getClusterStartTime();
-		
-		String simulationName =  settings.ctrl.saveFile + "_T";
-		
-		if(settings.ctrl.saveFile.contains("NO_DATE"))
-			simulationName =  RunState.DATE_FORMAT.format(0);
-		else
-			simulationName =  simulationName + RunState.DATE_FORMAT.format(new Date
-					(loadedStartTime == 0 ? startTime : loadedStartTime));
 		
 		return new RunState (activeBoxs, tempLins, startTime, simulationName, seed);
 	}
 
 
-	/**When loading from previous run start time for files will be start time of previous run.
-	 * This methods obtains that time
-	 * 
-	 * @return
-	 * @throws Exception
-	 */
-	private static long getLoadedStartTime() throws Exception {
-		String datePattern = "T([0-9]{2}\\-[0-9]{2}\\-[0-9]{4} [0-9]{2}\\-[0-9]{2}\\-[0-9]{2}?)";
-		
-		//if time specified in filename use that time
-		Matcher loadFileMatcher = Pattern.compile(".*" + datePattern).matcher(settings.ctrl.loadFile);
-		if(loadFileMatcher.find()) {
-			String dateMatch = loadFileMatcher.group(1);
-			return -RunState.DATE_FORMAT.parse(dateMatch).getTime();
-		}
-			
-		
-		
-		//if not then use most recent run
-		String loadDir = Runner.settings.loadDir;
-		Pattern pattern = Pattern.compile(Runner.settings.ctrl.loadFile.replace(loadDir + "/", "") 
-												+ "_" + datePattern + ".*\\.csv", Pattern.CASE_INSENSITIVE);
-		
-		ArrayList<Matcher> patternMatches = Stream.of(new File(loadDir).listFiles())
-					      .filter(file -> !file.isDirectory())
-					      .map(File::getName)
-					      .map(f -> pattern.matcher(f))
-					      .collect(Collectors.toCollection(ArrayList::new));
-		
-		long maxTime = 0;
-		for(Matcher match : patternMatches) {
-			if(match.find()) {
-				String dateMatch = match.group(1);
-				long actualTimestamp = RunState.DATE_FORMAT.parse(dateMatch).getTime();
-				maxTime = Math.max(actualTimestamp, maxTime);
+	/**Find the next available run number for this output prefix and date.*/
+	private static int getNextRunNumber(String saveFile, String dateStr) {
+		File saveFileObj = new File(saveFile);
+		File saveDir = saveFileObj.getParentFile();
+		String prefix = saveFileObj.getName();
+	
+		Pattern pattern = Pattern.compile(
+				Pattern.quote(prefix + "_" + dateStr + "_R") + "([0-9]+)_.*"
+		);
+	
+		int maxRun = 0;
+	
+		File[] files = saveDir.listFiles();
+		if(files != null) {
+			for(File file : files) {
+				Matcher matcher = pattern.matcher(file.getName());
+				if(matcher.matches())
+					maxRun = Math.max(maxRun, Integer.parseInt(matcher.group(1)));
 			}
 		}
-		
-		if(maxTime == 0)
-			throw new Exception("Can't find load file " + settings.ctrl.loadFile);
-		
-		return maxTime;
+	
+		return maxRun + 1;
 	}
 
 	/**Sets up random seed

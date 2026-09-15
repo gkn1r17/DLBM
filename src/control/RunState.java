@@ -15,7 +15,7 @@ public class RunState {
 
 	
 		/**Format for dates used written at start of log and in file names*/
-		public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd-MM-yyyy HH-mm-ss");
+		public static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
 
 		//TODO Alternative implementation:
 			//1) T_opt in Lineage{}: more "logical" in OOP sense and no need for concurrent collection

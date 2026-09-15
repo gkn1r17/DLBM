@@ -165,15 +165,8 @@ public class Output {
 			for(GridBox box : activeboxs)
 				box.combineImmigrants();
 			
-			//include length of longest row for easier loading into R
-			int chunkLength = 2;
-			if(Runner.settings.isSelective)
-				chunkLength++;
-			if(Runner.settings.ctrl.saveBirthHour)
-				chunkLength++;
-			int lineLength = (activeboxs.stream().mapToInt(GridBox::getNumLins).max().getAsInt() * chunkLength) + 1;
-			
-			String filename = Runner.runState.simName + "s" + lineLength + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
+			String filename = Runner.runState.simName + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
+
 			FileIO.savePop(activeboxs, filename, "");
 			
 
