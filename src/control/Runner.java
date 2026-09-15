@@ -175,9 +175,14 @@ public class Runner {
 			String dateStr = RunState.DATE_FORMAT.format(new Date(startTime));
 			int runNumber = getNextRunNumber(settings.ctrl.saveFile, dateStr);
 
-			simulationName = settings.ctrl.saveFile
+			String runID = new File(settings.ctrl.saveFile).getName()
 					+ "_" + dateStr
 					+ "_R" + String.format("%04d", runNumber);
+			
+			String runDir = settings.saveDir + "/" + runID;
+			new File(runDir).mkdirs();
+
+			simulationName = runDir;
 		}
 
 		long startTime = runParallel.getClusterStartTime();
@@ -193,7 +198,7 @@ public class Runner {
 		String prefix = saveFileObj.getName();
 	
 		Pattern pattern = Pattern.compile(
-				Pattern.quote(prefix + "_" + dateStr + "_R") + "([0-9]+)_.*"
+				Pattern.quote(prefix + "_" + dateStr + "_R") + "([0-9]+)"
 		);
 	
 		int maxRun = 0;

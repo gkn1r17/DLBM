@@ -142,21 +142,12 @@ public class Phylogeny implements Serializable{
 		
 		long saveStart =  System.currentTimeMillis();
 		
-		//ensure add in special phylogeny folder as tend to produce lots of files
-		String fileSep = "/";
-		//fileSep = File.separator;
+		//store phylogeny output within the run directory
+		String phyloPath = inFile + "/phylogeny";
+		new File(phyloPath).mkdirs();
 		
-		if(inFile.contains(fileSep))
-			inFile = inFile.replace(fileSep, fileSep + "phylogeny" + fileSep);
-		else
-			inFile = "phylogeny" + fileSep + inFile;
-		
-		String[] phyloPathBits = inFile.split("/");
-		String phyloPath = inFile.replace("/" + phyloPathBits[phyloPathBits.length - 1], "");
-		if(!new File(phyloPath).exists())
-			new File(phyloPath).mkdir();
-		
-		String filename = inFile + "_Phy_D" + timeStr + "_N" + Runner.runParallel.getRank() + ".ser";
+		String filename = phyloPath + "/D" + timeStr + "_N" + Runner.runParallel.getRank() + ".ser";
+				
         try {
             FileOutputStream fileOut = new FileOutputStream(filename);
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
@@ -197,14 +188,13 @@ public class Phylogeny implements Serializable{
 	 */
 	public static long[] loadMutants(String inDir, String inFile, ArrayList<GridBox> boxes, boolean loadAll, long loadHour) throws Exception {
 		int day = (int) Math.floor(loadHour / 24.0);
-		int hourOfDay = (int) ((loadHour /24.0) - day);
+		int hourOfDay = (int) (loadHour - day * 24);
 		String hourDayStr = day + "hr" + hourOfDay;
-		String fileName = inFile.replace(inDir + "/", "");
-		String maxFile = inDir + "/phylogeny/" + fileName + "_Phy_D" + hourDayStr + "_N" + Runner.runParallel.getRank() + ".ser";
+		String phyloDir = inFile + "/phylogeny";
+		String maxFile = phyloDir + "/D" + hourDayStr + "_N" + Runner.runParallel.getRank() + ".ser";
 		
-		if(loadAll) 
-			loadAllMutants(inDir + "/phylogeny/" + fileName, boxes, loadHour);
-
+		if(loadAll)
+			loadAllMutants(phyloDir, boxes, loadHour);
 		
 
 		
@@ -233,12 +223,10 @@ public class Phylogeny implements Serializable{
 
 	private static boolean loadAllMutants(String fileName, ArrayList<GridBox> boxes, long loadHour) throws IOException, ClassNotFoundException {
 		
-		String inFile = new File(fileName).getName();
 		String suffix = "_N" + Runner.runParallel.getRank() + ".ser";
-		String dirName = fileName.replace(inFile, "");
+		String dirName = fileName;
 		
-		
-		String filePattern = inFile + "_Phy_D[0-9]+(hr[0-9]+)?" + suffix;
+		String filePattern = "D[0-9]+(hr[0-9]+)?" + suffix;
 		Pattern pattern = Pattern.compile(filePattern, Pattern.CASE_INSENSITIVE);
 		
 		ArrayList<String> files = Stream.of(new File(dirName).listFiles())
@@ -256,7 +244,7 @@ public class Phylogeny implements Serializable{
 		
 		
 		for(String file : files) {
-			String time = file.replace(inFile + "_Phy_D", "").replace(suffix, "");
+			String time = file.replace("D", "").replace(suffix, "");
 			String[] hours = time.split("hr");
 			long hour = Long.parseLong(hours[0]) * 24 + 
 					(hours.length == 1 ?

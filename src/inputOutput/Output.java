@@ -165,7 +165,7 @@ public class Output {
 			for(GridBox box : activeboxs)
 				box.combineImmigrants();
 			
-			String filename = Runner.runState.simName + "_D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
+			String filename = Runner.runState.simName + "/D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
 
 			FileIO.savePop(activeboxs, filename, "");
 			
@@ -252,7 +252,7 @@ public class Output {
 		
 		//include length of longest row for easier loading into R
 		
-		String filename = Runner.runState.simName + "_N" + Runner.runParallel.getRank() + "_CHK" + checkLetter + ".csv";
+		String filename = Runner.runState.simName + "/checkpoint_" + checkLetter + "_N" + Runner.runParallel.getRank() + ".csv";
 		FileIO.savePop(activeboxs, filename, "Day," + hourDayString + "\n");
 
 		
@@ -266,7 +266,7 @@ public class Output {
 
 
 	public void logToCSV(String fileOut) throws IOException {
-		FileWriter csvWriter = new FileWriter(fileOut + "_N" + Runner.runParallel.getRank() + ".csv", true);
+		FileWriter csvWriter = new FileWriter(fileOut + "/summary_N" + Runner.runParallel.getRank() + ".csv", true);
 		csvWriter.write(reportForCSV.toString() + "\n");
 		csvWriter.close();
 		
@@ -367,11 +367,10 @@ public class Output {
 				
 				}else {
 					for(long i : linArray) {
-						for(long j : maxIDs) {
-							if(i == j)
-								throw new Exception("Debug: mismatch between population and individuals loaded from phylogeny files");
-
-						}
+						int originBox = (int) ((i / Runner.settings.mutantOffset) % Runner.settings.numBoxes);
+				
+						if(i > maxIDs[originBox])
+							throw new Exception("Debug: mismatch between population and individuals loaded from phylogeny files");
 					}
 				}
 				

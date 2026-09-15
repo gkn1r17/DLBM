@@ -74,8 +74,6 @@ public class Config {
 	public final long[] reportTimestepsArr;
 	/**hour timesteps extracted from MUTANT_TIMESTEPS_DAY*/
 	public final long[] mutantTimestepsArr;
-	/**directory from LOAD_FILE*/
-	public final String loadDir;
 	/**directory from SAVE_FILE*/
 	public final String saveDir;
 	//---
@@ -142,10 +140,6 @@ public class Config {
 				            		  
 		isSelective = sci.tempFile != null;
 		
-
-		loadDir = ctrl.loadFile == null 
-					?	null
-					:	new File(ctrl.loadFile).getParent();
 		saveDir = new File(ctrl.saveFile).getParent();
 		new File(saveDir).mkdir();
 		//----

@@ -131,20 +131,18 @@ public class FileIO {
 		long day = (long) Math.floor(Runner.startHour / 24);
 		long hourOfDay = Runner.startHour - (day * 24);
 		
-		
 		//produce regular expression for finding all files
-		inFile = inFile + "_D" + day + "(hr" + hourOfDay + ")?" + "_N[0-9]+\\.csv";
-		String filename = inFile.replace(Runner.settings.loadDir + "/", "");
+		String filename = "D" + day + "(hr" + hourOfDay + ")?" + "_N[0-9]+\\.csv";
 		
+		Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
+		ArrayList<String> files = Stream.of(new File(inFile).listFiles())
+				.filter(file -> !file.isDirectory())
+				.map(File::getName)
+				.filter(f -> pattern.matcher(f).matches())
+				.collect(Collectors.toCollection(ArrayList::new));
 		
-	    Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
-	    ArrayList<String> files = Stream.of(new File(Runner.settings.loadDir   ).listFiles())
-				      .filter(file -> !file.isDirectory())
-				      .map(File::getName)
-				      .filter(f -> pattern.matcher(f).find())
-				      .collect(Collectors.toCollection(ArrayList::new));
-		return loadFilesForEachNode(files, filename, boxes, tempLins);
-        
+		return loadFilesForEachNode(files, filename, inFile, boxes, tempLins);        
+
 	}
 	
 	
@@ -164,19 +162,19 @@ public class FileIO {
 		
 		while(true) {
 			try {
-			
+
 				//produce regular expression for finding all files
-				String filename = inFile + "_N[0-9]+_CHK" + chkChar + "\\.csv";
-				filename = filename.replace(Runner.settings.loadDir + "/", "");
+				String filename = "checkpoint_" + chkChar + "_N[0-9]+\\.csv";
 				
+				Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
+				ArrayList<String> files = Stream.of(new File(inFile).listFiles())
+						.filter(file -> !file.isDirectory())
+						.map(File::getName)
+						.filter(f -> pattern.matcher(f).matches())
+						.collect(Collectors.toCollection(ArrayList::new));
 				
-			    Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
-			    ArrayList<String> files = Stream.of(new File(Runner.settings.loadDir   ).listFiles())
-						      .filter(file -> !file.isDirectory())
-						      .map(File::getName)
-						      .filter(f -> pattern.matcher(f).find())
-						      .collect(Collectors.toCollection(ArrayList::new));
-				return loadFilesForEachNode(files, filename, boxes, tempLins);
+				return loadFilesForEachNode(files, filename, inFile, boxes, tempLins);
+			
 			}catch(Exception e) {
 				//if checkpoint B fails to load (probable interruption while saving) try A
 				if(chkChar == 'B')
@@ -196,7 +194,7 @@ public class FileIO {
 	 * @return Arraylist of filled GridBoxes
 	 * @throws Exception file fails to load
 	 */
-	private static ArrayList<GridBox> loadFilesForEachNode(ArrayList<String> files, String inFile, GridBox[] boxes, ConcurrentHashMap<Long, Float> tempLins) throws Exception {
+	private static ArrayList<GridBox> loadFilesForEachNode(ArrayList<String> files, String inFile, String loadDir, GridBox[] boxes, ConcurrentHashMap<Long, Float> tempLins) throws Exception {
 	    if(files.size() == 0)
 	    	throw new FileNotFoundException("Load file not found \"" + inFile + "\"");
 	    
@@ -219,7 +217,7 @@ public class FileIO {
 	    	
 	    	nodesHandled.add(nodeNum);
 	    
-			String filePath = Runner.settings.loadDir + "/" + f;
+			String filePath = loadDir + "/" + f;
 			
 			System.out.println("loading file: " + filePath);
 
@@ -488,7 +486,7 @@ public class FileIO {
 	public static void makeSettingsFile(String filename, String settingsStr) throws IOException {
 		
 		//create directory
-		File outFile = new File(filename +  "_Settings.ini");
+		File outFile = new File(filename + "/Settings.ini");
 		
 		//save
 		try {
