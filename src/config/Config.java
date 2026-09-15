@@ -180,18 +180,27 @@ public class Config {
 
 
 	private long[] parseTimesteps(String schedule) throws Exception {
-			if (schedule.endsWith(".csv")) {
-				return FileIO.loadLongSet(schedule).stream()
-						.mapToLong(e -> e * 24)
-						.sorted()
-						.toArray();
-			}
+	    if (schedule.equalsIgnoreCase("daily")) {
 
-    return Arrays.asList(schedule.split(",")).stream()
-            .mapToLong(e -> Long.parseLong(e.trim()) * 24)
-            .sorted()
-            .toArray();
-}
+			long durationDay = ctrl.durationDay;
+			long[] times = new long[(int) durationDay + 1];
+			for (int day = 0; day <= durationDay; day++)
+				times[day] = day * 24L;
+			return times;
+		}
+		
+		if (schedule.endsWith(".csv")) {
+			return FileIO.loadLongSet(schedule).stream()
+					.mapToLong(e -> e * 24)
+					.sorted()
+					.toArray();
+		}
+
+    	return Arrays.asList(schedule.split(",")).stream()
+        	    .mapToLong(e -> Long.parseLong(e.trim()) * 24)
+            	.sorted()
+            	.toArray();
+	}
 
 	/**Get filename or null if filename =none.
 	 * 
