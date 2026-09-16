@@ -298,7 +298,12 @@ public class Runner {
 					
 					System.out.println("Starting experiment at " + runState.startTimeStr );
 					System.out.println("Seed: " + runState.seed );
-					System.out.println("Initial state: day 0 (year 0.00), extant lineages " + allLineages.length);
+					long startDay = startHour / 24;
+					double startYear = startDay / 360.0;
+					
+					System.out.println("Initial state: day " + startDay
+							+ " (year " + String.format("%.2f", startYear)
+							+ "), extant lineages " + allLineages.length);
 
 					long lastTime = runState.startTime;
 					char checkLetter = 'A';
@@ -311,7 +316,9 @@ public class Runner {
 			if(settings.sci.tempFile != null)
 				tempChangesPerYear = activeBoxes.get(0).getTempChangesPerYear();
 			
-			int duration = settings.ctrl.durationDay * 24;
+			long duration = settings.ctrl.durationDay * 24L;
+			if(startHour > duration)
+				throw new IllegalArgumentException("Loaded start time is after DURATION_DAY");
 			
 			
 			//******************************************************************
@@ -323,7 +330,7 @@ public class Runner {
 				
 				//get current day/hour/year
 				day = (int) Math.floorDiv(hour, 24);
-				int dayOfYear = (int) (day % 365);
+				int dayOfYear = (int) (day % 360);
 				int hourOfDay = (int) (day == 0 ? hour : (int)(hour % (day * 24)));
 				
 				checkpointCounter -= settings.sci.dispHours;
@@ -333,7 +340,7 @@ public class Runner {
 				
 				//find out which temperature currently on
 				if(settings.sci.tempFile != null) {
-					tempTidx = (int) Math.floor(dayOfYear / (365.0 / tempChangesPerYear)  );
+					tempTidx = (int) Math.floor(dayOfYear / (360.0 / tempChangesPerYear)  );
 					if(tempTidx == tempChangesPerYear)
 						tempTidx --;
 				}
@@ -383,9 +390,11 @@ public class Runner {
 
 							////////// CHECKPOINTING
 							if (checkpointCounter <= 0) {
-								//BAW out.checkPoint(hour, activeBoxes, checkLetter);
+								for(GridBox box : activeBoxes)
+									box.combineImmigrants();
+							
 								int checkpointGlobalDiversity = runParallel.getAllLineageIDs(activeBoxes, hour).length;
-                                                                out.checkPoint(hour, activeBoxes, checkLetter, checkpointGlobalDiversity);
+								out.checkPoint(hour, activeBoxes, checkLetter, checkpointGlobalDiversity);
 								if(checkLetter == 'A')
 									checkLetter = 'B';
 								else 
@@ -399,7 +408,7 @@ public class Runner {
 							//just to show hasn't frozen
 							double secondsTaken = (System.currentTimeMillis() - lastTime) / 1000.0;
 							if (secondsTaken > settings.ctrl.timeThresh && runParallel.amIController()) { //report if taken too long
-								System.out.println("(I'm still alive) day: " + day + "hr" + hourOfDay + ", year " + Math.floorDiv(day, 365));
+								System.out.println("(I'm still alive) day: " + day + "hr" + hourOfDay + ", year " + Math.floorDiv(day, 360));
 								lastTime = System.currentTimeMillis();
 							}
 							

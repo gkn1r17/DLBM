@@ -138,7 +138,8 @@ public class Output {
 		//for back compatibility as formally only counted days
 		long day = (long) Math.floor(hour / 24);
 		int hourOfDay = (int) (hour - (day * 24));
-		String hourDayString = "" + day + "hr" + hourOfDay; 
+		String hourDayString = String.format("%09d", day)
+			+ "hr" + String.format("%02d", hourOfDay); 
 		
 		Phylogeny.saveMutants(Runner.runState.simName,  hourDayString, activeboxs);
 		debug.mutantLastSavedHour = hour;
@@ -150,7 +151,7 @@ public class Output {
 		//saveNext = when next to save
 		return ((mutantI < Runner.settings.mutantTimestepsArr.length)   ?
 							Runner.settings.mutantTimestepsArr[mutantI] :
-							Integer.MAX_VALUE
+							Long.MAX_VALUE
 				);
 	}
 	
@@ -159,13 +160,15 @@ public class Output {
 			//for back compatibility as formally only counted days
 			long day = (long) Math.floor(hour / 24);
 			int hourOfDay = (int) (hour - (day * 24));
-			String hourDayString = "" + day + "hr" + hourOfDay; 
-
 			
 			for(GridBox box : activeboxs)
 				box.combineImmigrants();
 			
-			String filename = Runner.runState.simName + "/D" + hourDayString + "_N" + Runner.runParallel.getRank() + ".csv";
+			String filename = Runner.runState.simName
+					+ "/D" + String.format("%09d", day)
+					+ "hr" + String.format("%02d", hourOfDay)
+					+ "_N" + String.format("%03d", Runner.runParallel.getRank())
+					+ ".csv";
 
 			FileIO.savePop(activeboxs, filename, "");
 			
@@ -180,7 +183,7 @@ public class Output {
 			//saveNext = when next to save
 			return ((saveI < Runner.settings.saveTimestepsArr.length)   ?
 								Runner.settings.saveTimestepsArr[saveI] :
-								Integer.MAX_VALUE
+								Long.MAX_VALUE
 					);
 	}	
 		
@@ -199,12 +202,12 @@ public class Output {
 				
 			}
 			else {
-				reportLocalGlobalDiversity("day," + day + ",year," + Math.floorDiv(day, 365), day, activeboxs, globalDiversity);
+				reportLocalGlobalDiversity("day," + day + ",year," + Math.floorDiv(day, 360), day, activeboxs, globalDiversity);
 			
 				
 				//report mutant idx for working out age of new individuals
-				//BAW System.out.print("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
-				reportForCSV.append("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 365));
+				//BAW System.out.print("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 360));
+				reportForCSV.append("day(mutantIDs)," + day + ",year," + Math.floorDiv(day, 360));
 				for(GridBox box : activeboxs) { 
 					//BAW System.out.print("," + box.getCurrentMutantID());
 					reportForCSV.append("," + box.getCurrentMutantID());
@@ -220,7 +223,7 @@ public class Output {
 			//reportNext = when next to report
 			return ((reportI < Runner.settings.reportTimestepsArr.length)   ?
 						Runner.settings.reportTimestepsArr[reportI] :
-								Integer.MAX_VALUE
+								Long.MAX_VALUE
 					);	
 		}
 
@@ -242,17 +245,15 @@ public class Output {
 		//for back compatibility as formally only counted days
 		long day = (long) Math.floor(hour / 24);
 		int hourOfDay = (int) (hour - (day * 24));
-		String hourDayString = "" + day + "hr" + hourOfDay; 
+		String hourDayString = String.format("%09d", day)
+			+ "hr" + String.format("%02d", hourOfDay); 
 					
-		System.out.println("Checkpoint: day " + day + " (year " + String.format("%.2f", day / 365.0) + "), extant lineages " + globalDiversity);
+		System.out.println("Checkpoint: day " + day + " (year " + String.format("%.2f", day / 360.0) + "), extant lineages " + globalDiversity);
 		//BAW System.out.println("Checkpointing started");
-			
-		for(GridBox box : activeboxs)
-			box.combineImmigrants();
 		
 		//include length of longest row for easier loading into R
 		
-		String filename = Runner.runState.simName + "/checkpoint_" + checkLetter + "_N" + Runner.runParallel.getRank() + ".csv";
+		String filename = Runner.runState.simName + "/checkpoint_" + checkLetter + "_N" + String.format("%03d", Runner.runParallel.getRank()) + ".csv";
 		FileIO.savePop(activeboxs, filename, "Day," + hourDayString + "\n");
 
 		
@@ -266,7 +267,7 @@ public class Output {
 
 
 	public void logToCSV(String fileOut) throws IOException {
-		FileWriter csvWriter = new FileWriter(fileOut + "/summary_N" + Runner.runParallel.getRank() + ".csv", true);
+		FileWriter csvWriter = new FileWriter(fileOut + "/summary_N" + String.format("%03d", Runner.runParallel.getRank()) + ".csv", true);
 		csvWriter.write(reportForCSV.toString() + "\n");
 		csvWriter.close();
 		

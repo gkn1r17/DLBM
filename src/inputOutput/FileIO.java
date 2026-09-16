@@ -132,7 +132,9 @@ public class FileIO {
 		long hourOfDay = Runner.startHour - (day * 24);
 		
 		//produce regular expression for finding all files
-		String filename = "D" + day + "(hr" + hourOfDay + ")?" + "_N[0-9]+\\.csv";
+		String filename = "D" + String.format("%09d", day)
+				+ "hr" + String.format("%02d", hourOfDay)
+				+ "_N[0-9]{3}\\.csv";
 		
 		Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
 		ArrayList<String> files = Stream.of(new File(inFile).listFiles())
@@ -164,7 +166,7 @@ public class FileIO {
 			try {
 
 				//produce regular expression for finding all files
-				String filename = "checkpoint_" + chkChar + "_N[0-9]+\\.csv";
+				String filename = "checkpoint_" + chkChar + "_N[0-9]{3}\\.csv";
 				
 				Pattern pattern = Pattern.compile(filename, Pattern.CASE_INSENSITIVE);
 				ArrayList<String> files = Stream.of(new File(inFile).listFiles())

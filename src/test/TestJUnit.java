@@ -102,7 +102,7 @@ public class TestJUnit {
 		//if I've messed the tests up so badly they aren't testing anything. Remove if needed.
 		//or, alternatively, aren't accidentally saving and reloading just loaded run
 		
-		int duration = 365;
+		int duration = 360;
 		
 		
 		

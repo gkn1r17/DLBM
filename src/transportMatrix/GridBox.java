@@ -637,7 +637,7 @@ private final long minID;
 
 
 	public void tracerPrint(double day, List<GridBox> activeBoxes) {
-		System.out.print(Math.floor(day / 365.0) + "," + id + "," + arrivedFrom.size());
+		System.out.print(Math.floor(day / 360.0) + "," + id + "," + arrivedFrom.size());
 		
 		int count = 0;
 		for(GridBox boxes : activeBoxes) {

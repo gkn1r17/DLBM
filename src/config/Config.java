@@ -23,13 +23,16 @@ package config;
 
 
 import java.io.File;
+
 import java.util.Arrays;
 import java.util.Map.Entry;
+import java.util.TreeSet;
 
 import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
 
 import inputOutput.FileIO;
+
 
 public class Config {
 	
@@ -174,26 +177,81 @@ public class Config {
 
 
 	private long[] parseTimesteps(String schedule) throws Exception {
-	    if (schedule.equalsIgnoreCase("daily")) {
-
-			long durationDay = ctrl.durationDay;
-			long[] times = new long[(int) durationDay + 1];
-			for (int day = 0; day <= durationDay; day++)
-				times[day] = day * 24L;
-			return times;
+		String scheduleLower = schedule.toLowerCase();
+	
+		if (scheduleLower.equals("daily")
+				|| scheduleLower.equals("ten-daily")
+				|| scheduleLower.equals("monthly")
+				|| scheduleLower.equals("yearly")
+				|| scheduleLower.equals("visualisation")) {
+			return makeAlgorithmicTimesteps(scheduleLower, ctrl.durationDay);
 		}
-		
-		if (schedule.endsWith(".csv")) {
+	
+		if (scheduleLower.endsWith(".csv")) {
 			return FileIO.loadLongSet(schedule).stream()
 					.mapToLong(e -> e * 24)
 					.sorted()
 					.toArray();
 		}
+	
+		return Arrays.asList(schedule.split(",")).stream()
+				.mapToLong(e -> Long.parseLong(e.trim()) * 24)
+				.sorted()
+				.toArray();
+	}
+	
+	private long[] makeAlgorithmicTimesteps(String schedule, long durationDay) {
+		TreeSet<Long> days = new TreeSet<Long>();
+		days.add(0L);
+	
+		if (schedule.equals("daily")) {
+			addRegularTimesteps(days, 1, durationDay);
+		}
+		else if (schedule.equals("ten-daily")) {
+			addRegularTimesteps(days, 10, durationDay);
+		}
+		else if (schedule.equals("monthly")) {
+			addRegularTimesteps(days, 30, durationDay);
+		}
+		else if (schedule.equals("yearly")) {
+			addRegularTimesteps(days, 360, durationDay);
+		}
+		else if (schedule.equals("visualisation")) {
+	
+			// daily through one week
+			addRegularTimesteps(days, 1, Math.min(7, durationDay));
+	
+			// weekly through three weeks
+			addRegularTimesteps(days, 7, Math.min(21, durationDay));
+	
+			// monthly through one year
+			addRegularTimesteps(days, 30, Math.min(360, durationDay));
 
-    	return Arrays.asList(schedule.split(",")).stream()
-        	    .mapToLong(e -> Long.parseLong(e.trim()) * 24)
-            	.sorted()
-            	.toArray();
+			// yearly through ten years
+			addRegularTimesteps(days, 360, Math.min(3600, durationDay));
+	
+			// thereafter, 10 logarithmically spaced outputs per decade
+			for (int n = 1; ; n++) {
+				long day = Math.round(3600.0 * Math.pow(10.0, n / 10.0));
+	
+				if (day >= durationDay)
+					break;
+	
+				days.add(day);
+			}
+		}
+	
+		// Built-in schedules always include the end of the simulation
+		days.add(durationDay);
+	
+		return days.stream()
+				.mapToLong(day -> day * 24L)
+				.toArray();
+	}
+	
+	private void addRegularTimesteps(TreeSet<Long> days, long intervalDay, long endDay) {
+		for (long day = intervalDay; day <= endDay; day += intervalDay)
+			days.add(day);
 	}
 
 	/**Get filename or null if filename =none.

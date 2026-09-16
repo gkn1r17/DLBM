@@ -146,7 +146,9 @@ public class Phylogeny implements Serializable{
 		String phyloPath = inFile + "/phylogeny";
 		new File(phyloPath).mkdirs();
 		
-		String filename = phyloPath + "/D" + timeStr + "_N" + Runner.runParallel.getRank() + ".ser";
+		String filename = phyloPath + "/D" + timeStr
+				+ "_N" + String.format("%03d", Runner.runParallel.getRank())
+				+ ".ser";
 				
         try {
             FileOutputStream fileOut = new FileOutputStream(filename);
@@ -189,9 +191,12 @@ public class Phylogeny implements Serializable{
 	public static long[] loadMutants(String inDir, String inFile, ArrayList<GridBox> boxes, boolean loadAll, long loadHour) throws Exception {
 		int day = (int) Math.floor(loadHour / 24.0);
 		int hourOfDay = (int) (loadHour - day * 24);
-		String hourDayStr = day + "hr" + hourOfDay;
+		String hourDayStr = String.format("%09d", day)
+			+ "hr" + String.format("%02d", hourOfDay);
 		String phyloDir = inFile + "/phylogeny";
-		String maxFile = phyloDir + "/D" + hourDayStr + "_N" + Runner.runParallel.getRank() + ".ser";
+		String maxFile = phyloDir + "/D" + hourDayStr
+			+ "_N" + String.format("%03d", Runner.runParallel.getRank())
+			+ ".ser";
 		
 		if(loadAll)
 			loadAllMutants(phyloDir, boxes, loadHour);
@@ -223,16 +228,16 @@ public class Phylogeny implements Serializable{
 
 	private static boolean loadAllMutants(String fileName, ArrayList<GridBox> boxes, long loadHour) throws IOException, ClassNotFoundException {
 		
-		String suffix = "_N" + Runner.runParallel.getRank() + ".ser";
+		String suffix = "_N" + String.format("%03d", Runner.runParallel.getRank()) + ".ser";
 		String dirName = fileName;
 		
-		String filePattern = "D[0-9]+(hr[0-9]+)?" + suffix;
+		String filePattern = "D[0-9]{9}hr[0-9]{2}" + suffix;
 		Pattern pattern = Pattern.compile(filePattern, Pattern.CASE_INSENSITIVE);
 		
 		ArrayList<String> files = Stream.of(new File(dirName).listFiles())
 					      .filter(file -> !file.isDirectory())
 					      .map(File::getName)
-					      .filter(f -> pattern.matcher(f).find())
+					      .filter(f -> pattern.matcher(f).matches())
 					      .collect(Collectors.toCollection(ArrayList::new));
 		
 		
