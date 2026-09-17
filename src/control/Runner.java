@@ -273,7 +273,7 @@ public class Runner {
 	 * @param args command line args
 	 * @param startTime 
 	 */
-	private static void runAll(String[] args) {
+	private static void runAll(String[] args) throws Exception {
 		long hour = 0;
 		long day = 0;
 		Output out = new Output();
@@ -421,16 +421,12 @@ public class Runner {
 			
 			runState.day = (int) Math.floorDiv(hour, 24);
 			runState.hour = hour;
-
-			
 			
 		}catch(Exception e){
 			int hourOfDay = (int) (day == 0 ? hour : (int)(hour % (day * 24)));
 			System.err.println("Failed at day " + day + " hour" + hourOfDay);
-			e.printStackTrace();
 			runParallel.abortParallel();
-			System.exit(-1);		
-
+			throw e;
 		}
 		
 		try {
