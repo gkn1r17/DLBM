@@ -242,7 +242,6 @@ public class Runner {
 		else {
 		
 				boxs = FileIO.loadTM(settings.sci.tmFile,  //TM configuration
-							FileIO.loadDoubleFile(settings.sci.volFile), //Volumes of each location
 							FileIO.loadDoubleFile(settings.sci.tempFile), //Temp of each location
 							true
 						);
@@ -305,7 +304,6 @@ public class Runner {
 							+ " (year " + String.format("%.2f", startYear)
 							+ "), extant lineages " + allLineages.length);
 
-					long lastTime = runState.startTime;
 					char checkLetter = 'A';
 					int checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
 					///////////////////////////////////////////
@@ -405,12 +403,7 @@ public class Runner {
 							}
 							//
 			
-							//just to show hasn't frozen
-							double secondsTaken = (System.currentTimeMillis() - lastTime) / 1000.0;
-							if (secondsTaken > settings.ctrl.timeThresh && runParallel.amIController()) { //report if taken too long
-								System.out.println("(I'm still alive) day: " + day + "hr" + hourOfDay + ", year " + Math.floorDiv(day, 360));
-								lastTime = System.currentTimeMillis();
-							}
+
 							
 							////////////////////////////////////////////////////////////
 

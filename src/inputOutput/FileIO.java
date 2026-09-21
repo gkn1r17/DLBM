@@ -36,15 +36,14 @@ public class FileIO {
 	 * Column3 = probability
 	 * 
 	 * @param filename
-	 * @param vols 2d array where [normalised volume of each grid box][0]
-	 * 					or null if all equal volume
 	 * @param temps 2d array where [temperature of each grid box][month/day etc. or 0 if not seasonal]
 	 * 					or null if non selective
 	 * @param verbose
 	 * @return all GridBoxes
 	 * @throws FileNotFoundException
 	 */
-	public static GridBox[] loadTM(String filename, double[][] vols, double[][] temps, boolean verbose) throws FileNotFoundException {
+	public static GridBox[] loadTM(String filename,
+        double[][] temps, boolean verbose) throws FileNotFoundException {
 		
 		//double maxStay = 0;
 		
@@ -69,7 +68,6 @@ public class FileIO {
 	                
 	                if(boxes[from] == null) {
 	                	boxes[from] = new GridBox(from, 
-	                			vols == null ? 1.0 : vols[from][0],
 	                					// temperature = eiter non selective run (-999)
 	                						//or from temps array
 	                			temps == null ? new double[] {-999.0} : temps[from]);
@@ -79,7 +77,6 @@ public class FileIO {
 	            		GridBox destBox = boxes[dest];
 	            		if(destBox == null) { 
 	            			boxes[dest] = new GridBox(dest, 
-	            					vols == null ? 1 : vols[dest][0], 
 	            					temps == null ? new double[] {-999.0} : temps[dest]);
 	            			destBox = boxes[dest];
 	            		}

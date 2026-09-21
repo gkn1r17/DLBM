@@ -44,7 +44,7 @@ public class MakeArtificialTM {
 			
 			
 			if(boxes[from] == null)
-                boxes[from] = new GridBox(from, 1.0, new double[] {-999.0});
+                boxes[from] = new GridBox(from, new double[] {-999.0});
 			for(int to : tos) {
 				
 				if(Runner.settings.tm.tmGyre) {
@@ -53,7 +53,7 @@ public class MakeArtificialTM {
 				}
 				if(to < Runner.settings.numBoxes && to >= 0) {
 					if(boxes[to] == null)
-						boxes[to] = new GridBox(to, 1.0, new double[] {-999.0});
+						boxes[to] = new GridBox(to, new double[] {-999.0});
 					if(Runner.settings.tm.tmGyre &&  (to == 0 || to == Runner.settings.numBoxes / 2) && dispOut != disp) {
 						if(dispOut > 0)
 							boxes[from].addDest(dispOut, boxes[to], tmWriter);

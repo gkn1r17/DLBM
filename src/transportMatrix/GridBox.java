@@ -38,16 +38,13 @@ public class GridBox implements Comparable<GridBox>{
  
  /**ID (zero indexed)*/
  public final int id;
- /**proportional volume (water volume / maxVol)*/
- private final double volume; 
-
  
  
  /**list of currently present lineages*/	
  protected TreeSet<Lineage> population;
  /**current total population size*/
  public int size;
- /**carrying capacity (fixed K stored in settings.CC * volume)*/
+ /**carrying capacity*/
  private int myCC;
  
  //-------------Selection
@@ -89,10 +86,9 @@ private final long minID;
 /***************************** INITIALISATION **********************************************/
 /*******************************************************************************************/
 
-	 public GridBox(int id, double volume, double[] temps) { 
+	 public GridBox(int id, double[] temps) { 
 		this.id = id;
 		this.tsintvTemps = temps;
-		this.volume = volume;
 		this.minID = id * Runner.settings.mutantOffset;
 		phylogeny = new Phylogeny(id, minID);
 	 } 
@@ -119,7 +115,7 @@ private final long minID;
 		}
 		
 		//initialise local carrying capacity
-		myCC = (int) Math.round(Runner.settings.sci.K * volume);
+		myCC = Runner.settings.sci.K;
 		
 		
 	}
@@ -185,7 +181,7 @@ private final long minID;
 		
 		if(size < 0)
 			throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
-		myCC = (int) Math.round(Runner.settings.sci.K * volume);
+		myCC = Runner.settings.sci.K;
 		
 		// NOTE = don't manipulate phylogeny now as this is done in setup() 
 		//			from maxID field in previous phylogeny file
@@ -563,11 +559,6 @@ private final long minID;
 			return phylogeny.streamAllChildren();
 		}
 
-		public double getVol() {
-			return volume;
-		}
-
-
 		/**Initialize range of indices for all individuals initialised in this location
 		 * 
 		 * @param bgn first index
@@ -578,7 +569,7 @@ private final long minID;
 			
 			
 			//set initial population size at equilibrium
-			size = (int) Math.round(Runner.settings.initialP * volume);
+			size = (int) Math.round(Runner.settings.initialP);
 			
 			//number of lineages to start with
 			numLins = (int) Math.round((double)size / (double)Runner.settings.sci.initLinSize);

@@ -43,8 +43,7 @@ public class SciConfig {
 			// DISPERSAL
 			/**number of hours between dispersal timesteps*/
 			public final double dispHours;
-			/**path to file containing volumes (volume of each location relative to mean)*/
-			public final String volFile; 
+
 			/**multiply each dispersal pathway by this*/
 			public final double dispScaler;
 			
@@ -124,7 +123,7 @@ public class SciConfig {
 			
 			
 			tmFile = Config.parseFilename(iniFR.getParamValue("TM_FILE", "TransportMatrix", false));
-			volFile = Config.parseFilename(iniFR.getParamValue("VOL_FILE", "TransportMatrix", false));
+
 
 			////////////////////////////////////////////////Dispersal //////////////////////////////////////////////			
 			
