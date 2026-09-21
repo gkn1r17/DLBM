@@ -143,11 +143,20 @@ public class RunnerParallelization {
 	}
 
 	
-	private static int[][] allocateClusters(ArrayList<GridBox> boxs, DRand rd) throws FileNotFoundException {
-    	Scanner clustReader = new Scanner(new File(Runner.settings.ctrl.clustFile));
-
-		
+	private int[][] allocateClusters(ArrayList<GridBox> boxs, DRand rd) throws FileNotFoundException {
+	
 		int[][] boxsClustNodes = new int[Runner.settings.numBoxes][3];
+	
+		if (nodes.size() == 1) {
+			for (int i = 0; i < Runner.settings.numBoxes; i++) {
+				boxsClustNodes[i][0] = i;
+				boxsClustNodes[i][1] = 0;
+				boxsClustNodes[i][2] = rd.nextInt();
+			}
+			return boxsClustNodes;
+		}
+
+		Scanner clustReader = new Scanner(new File(Runner.settings.ctrl.clustFile));
 		
     	int i =0;
         while (clustReader.hasNextLine()){
