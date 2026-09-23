@@ -86,12 +86,13 @@ private final long minID;
 /***************************** INITIALISATION **********************************************/
 /*******************************************************************************************/
 
-	 public GridBox(int id, double[] temps) { 
+	public GridBox(int id, double[] temps) { 
 		this.id = id;
 		this.tsintvTemps = temps;
+		this.currentTemp = temps[0];
 		this.minID = id * Runner.settings.mutantOffset;
 		phylogeny = new Phylogeny(id, minID);
-	 } 
+	}
 	 
 	 
 	 /** Initialize with settings.INIT_LIN_SIZE individuals in each lineage 
@@ -597,29 +598,22 @@ private final long minID;
 			
 			/////////// TEMPERATURE STUFF ////////////////////////
 			if(Runner.settings.isSelective) {
-				     double minTemp =  (currentTemp - (Runner.settings.sci.tempStartRange / 2.0)  );
-				     double maxTemp = (float) (currentTemp + (Runner.settings.sci.tempStartRange/2.0)   );
-				     
-				     if(tsintvTemps.length > 1) {
-				    	 minTemp = Arrays.stream(tsintvTemps).min().getAsDouble();
-				    	 maxTemp = Arrays.stream(tsintvTemps).max().getAsDouble();
-				     }
-				    	 //.stream().mapToDouble(e -> e).min().getAsDouble();
-				     
-				     double curTemp = 0;
-				     double tempIntv = (maxTemp - minTemp) / numLins;
-		
-				     
-				     for(long i = minID; i < minID + numLins; i++) {
-				    	 curTemp = minTemp + (tempIntv * (i - minID) );
-				    	 curTemp = Math.round(curTemp * Runner.settings.sci.tempGranularity) / (double)Runner.settings.sci.tempGranularity;
-				 		 if(Runner.settings.ctrl.loadFile == null)
-				 			 tempLins.put(i, (float) curTemp);
-				     }
-		     
+			
+				double curTemp = currentTemp;
+			
+				curTemp = Math.round(
+					curTemp * Runner.settings.sci.tempGranularity
+				) / (double) Runner.settings.sci.tempGranularity;
+			
+				for(long i = minID; i < minID + numLins; i++) {
+			
+					if(Runner.settings.ctrl.loadFile == null)
+						tempLins.put(i, (float) curTemp);
+				}
+			
 			}
-		     
-		}
+			
+			}
 
 
 
