@@ -220,26 +220,46 @@ public class Config {
 	
 			// daily through one week
 			addRegularTimesteps(days, 1, Math.min(7, durationDay));
-	
+			
 			// weekly through three weeks
-			addRegularTimesteps(days, 7, Math.min(21, durationDay));
-	
+			if (durationDay >= 14)
+				days.add(14L);
+			
+			if (durationDay >= 21)
+				days.add(21L);
+			
 			// monthly through one year
 			addRegularTimesteps(days, 30, Math.min(360, durationDay));
-
-			// yearly through ten years
-			addRegularTimesteps(days, 360, Math.min(3600, durationDay));
-	
-			// thereafter, 10 logarithmically spaced outputs per decade
-			for (int n = 1; ; n++) {
-				long day = Math.round(3600.0 * Math.pow(10.0, n / 10.0));
-	
-				if (day >= durationDay)
-					break;
-	
-				days.add(day);
+			
+			// yearly through nine years
+			for (int n = 2; n <= 9; n++) {
+				long day = 360L * n;
+			
+				if (day <= durationDay)
+					days.add(day);
 			}
-		}
+			
+			// thereafter:
+			// 10,20,...90 years
+			// 100,200,...900 years
+			// 1000,2000,...9000 years
+			// etc.
+			long scale = 10;
+			
+			while (360L * scale <= durationDay) {
+			
+				for (int n = 1; n <= 9; n++) {
+			
+					long day = 360L * scale * n;
+			
+					if (day > durationDay)
+						break;
+			
+					days.add(day);
+				}
+			
+				scale *= 10;
+			}		}
 	
 		// Built-in schedules always include the end of the simulation
 		days.add(durationDay);
