@@ -43,8 +43,8 @@ public abstract class Lineage implements Comparable<Lineage>{
 	}
 
 	
-	public boolean isSunk() {
-		return id >= ControlConfig.SINK_OFFSET;
+	public boolean isDormant() {
+		return id < 0;
 	}
 
 
@@ -171,22 +171,16 @@ public abstract class Lineage implements Comparable<Lineage>{
 
 
 
-	/**Make lineage sunken (or spore) lineage
+	/**Create a lineage in the opposite dormancy state.
 	 * 
-	 * @param sinkNum number to sink
-	 * @param neutral if neutral lineages
-	 * @return new sunken Lineage
+	 * @param switchNum number of individuals switching state
+	 * @return new Lineage in the opposite dormancy state
 	 */
-	public Lineage makeSunk(int sinkNum) {
-		
-		
-		//if already sunk will subtract SINK_OFFSET indicating not sunk
-		//if not sunk will add SINK_OFFSET
-		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
-		if(id >= ControlConfig.SINK_OFFSET) //if already sunk then unsink
-			return new NeutralLineage(sinkNum, id  - ControlConfig.SINK_OFFSET); //, birthHour); 
-		else
-			return new NeutralLineage(sinkNum, id  + ControlConfig.SINK_OFFSET); //, birthHour); 
+	public Lineage switchDormancyState(int switchNum) throws Exception {
+		if(id == 0)
+			throw new Exception("Lineage ID 0 is reserved and cannot switch dormancy state");
+	
+		return new NeutralLineage(switchNum, -id);
 	}
 	
 	/**Make Lineage from long[] = 

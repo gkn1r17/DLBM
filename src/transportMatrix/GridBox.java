@@ -42,8 +42,8 @@ public class GridBox implements Comparable<GridBox>{
  
  /**list of currently present lineages*/	
  protected TreeSet<Lineage> population;
- /**current total population size*/
- public int size;
+/**current active population size; dormant individuals are excluded until they return to the active state*/
+public int size;
  /**carrying capacity*/
  private int myCC;
  
@@ -90,7 +90,7 @@ private final long minID;
 		this.id = id;
 		this.tsintvTemps = temps;
 		this.currentTemp = temps[0];
-		this.minID = id * Runner.settings.mutantOffset;
+		this.minID = id * Runner.settings.mutantOffset + 1;
 		phylogeny = new Phylogeny(id, minID);
 	}
 	 
@@ -171,7 +171,8 @@ private final long minID;
 			if(includesBirthhours)
 				birthHour = Long.parseLong(tokens[i + birthIDx]);
 			
-			if(id < ControlConfig.SINK_OFFSET)
+			if(id > 0) 
+				//active cells
 				size += num; //add to population size
 			
 
@@ -278,7 +279,7 @@ private final long minID;
 					continue;
 
 			//grow/die
-			if(s.getId() < ControlConfig.SINK_OFFSET && !Runner.settings.ctrl.tracerMode)
+			if(!s.isDormant() && !Runner.settings.ctrl.tracerMode)
 				size += s.growDie(willGrow, gr, mort, currentTemp, 
 						tempChanged, this, pn, bn, rd, phylogeny, mutants, hour);
 			
@@ -287,9 +288,9 @@ private final long minID;
 			if(dispersing && s.size > 0) {
 				size -= dispBinomial(s, bn, rd);
 				
-				//dormant spores
-				if(Runner.settings.sci.sizeRefuge > 0 && s.size > 0) {
-					disperseSpores(s, bn, rd);
+				//active/dormant switching
+				if(Runner.settings.sci.dormantFrac > 0 && s.size > 0) {
+					switchDormancy(s, bn, rd);
 				}
 				
 
@@ -455,40 +456,10 @@ private final long minID;
 	 * @return number of unsunken lineages with population > 0
 	 */
 	public int getNumLins() {
-		return (int) (population.stream().filter(lin -> lin.getId() < ControlConfig.SINK_OFFSET).count());
+		return (int) (population.stream().filter(lin -> !lin.isDormant()).count());
 	}
 	
 	
-//	public double getTotalEvenness(double logN) {
-//		return -population.stream().filter(lin -> !lin.isSunk()).
-//				mapToDouble(lin -> (  (lin.size / (double)size) * Math.log(  (lin.size  / (double)size    )     )) ).sum() /  logN;
-//	}
-//
-//	public double getOriginEvenness() {
-//		double logN = Math.log(size);
-//		
-//		HashMap<Integer, Integer> cellCounts = new HashMap<Integer, Integer>();
-//		for(Lineage lin : population) {
-//			
-//			if(lin.getId() < settings.SINK_OFFSET) {
-//				int box = Lineage.getOrign(id, lin.getId());
-//			
-//				cellCounts.compute(box, (k, v) -> (v == null) ? lin.size : v + lin.size);
-//			}
-//		}
-//		
-//		return -cellCounts.values().stream().mapToDouble(val -> (   (val / (double)size) * Math.log(   (val / (double)size )  )) ).sum() /  logN;
-//		
-//		
-//	}
-
-
-
-
-
-
-
-
 		@Override
 		public boolean equals(Object oth) {
 			if(this == oth)
@@ -552,7 +523,7 @@ private final long minID;
 
 
 		public LongStream streamLinNums() {
-			return population.stream().filter(lin -> lin.getId() < ControlConfig.SINK_OFFSET).
+			return population.stream().filter(lin -> !lin.isDormant()).
 					mapToLong(lin -> lin.getId());
 		}
 		
@@ -640,23 +611,42 @@ private final long minID;
 	}
 
 
-	public void disperseSpores(Lineage s, Binomial bn, DRand rd) throws Exception {
-		int sinkNum = ProbFunctions.getBinomial(s.size, Runner.settings.sci.sizeRefuge, bn, rd);
-		if(sinkNum > 0) {
-			Lineage sunk =  s.makeSunk(sinkNum);
-			
-			
-			
-			disperseToMe(sunk, sinkNum);
-			
-			s.size -= sinkNum;
-			
-			//if lineage was sunk (now unsunk) add these individuals, if not remove them from total box population
-			if(!s.isSunk()) {
-				size -= sinkNum;
+	public void switchDormancy(Lineage s, Binomial bn, DRand rd) throws Exception {
+	
+		double dormantFrac = Runner.settings.sci.dormantFrac;
+		double tauDay = Runner.settings.sci.dormantTauDay;
+		double dtDay = Runner.settings.sci.dispHours / 24.0;
+	
+		double rate;
+	
+		if(s.isDormant()) {
+			// dormant -> active
+			rate = (1.0 - dormantFrac) / tauDay;
+		}
+		else {
+			// active -> dormant
+			rate = dormantFrac / tauDay;
+		}
+	
+		double pSwitch = 1.0 - Math.exp(-rate * dtDay);
+	
+		int switchNum = ProbFunctions.getBinomial(s.size, pSwitch, bn, rd);
+	
+		if(switchNum > 0) {
+	
+			Lineage switched = s.switchDormancyState(switchNum);
+	
+			disperseToMe(switched, switchNum);
+	
+			s.size -= switchNum;
+	
+			//if lineage was active, remove newly dormant individuals
+			//from the active population size
+			if(!s.isDormant()) {
+				size -= switchNum;
+	
 				if(size < 0)
 					throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
-	
 			}
 		}
 	}

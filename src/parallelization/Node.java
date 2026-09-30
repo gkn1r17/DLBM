@@ -335,36 +335,44 @@ public class Node {
 	/**Should behave exactly the same as compileMPImessage except without complicated conversion of long into ints
 	 * Used when testing multiple "nodes" locally
 	 * ---
-	 * For decoding see decompileMPImessageTest(...) 
-	 * @param settings */
+	 * Each destination group is encoded as:
+	 * [destination box ID], [number of lineages], [lineage records...]
+	 *
+	 * Each lineage record contains:
+	 * [lineage ID], [number of individuals dispersed],
+	 * [optional birth hour], [optional t_opt]
+	 *
+	 * For decoding see decompileMPImessageTest(...)
+	 */
 	private long[] compileMPImessageTest(ArrayList<DispersalHandlerDistributed> distM) {
 		TreeMap<GridBox, TreeMap<Lineage, Integer>> movTree = new TreeMap<GridBox, TreeMap<Lineage, Integer>>();
 		for(DispersalHandlerDistributed mov : distM)
 			mov.collateMovs(movTree);
 		
-		//convert list of movement objects into format below for broadcasting:
-				//[-locationID, lin1ID, lin1Quant, Lin2ID, lin2Quant]
 		LongStream.Builder movStrm = LongStream.builder();
 		
 		for(Entry<GridBox, TreeMap<Lineage, Integer>> mt : movTree.entrySet()) {
-			movStrm.add(-mt.getKey().id - 1); // add the location id in negative so indicates new location (i.e. not confused with lineage ID)
+	
+			//destination box ID
+			movStrm.add(mt.getKey().id);
+	
+			//number of lineage records for this destination
+			movStrm.add(mt.getValue().size());
+	
 			for(Entry<Lineage, Integer> lin : mt.getValue().entrySet()) {
 				movStrm.add(lin.getKey().getId()); //add lineage id
 				movStrm.add(lin.getValue()); //add number of individuals moved
+	
 				if(Runner.settings.ctrl.saveBirthHour)
 					movStrm.add(lin.getKey().getBirthHour());
+	
 				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0)
 					movStrm.add(Float.floatToIntBits(lin.getKey().getTopt()));
-//				if( lin.getKey().getId() % 1000 == 0)
-//					System.out.println("Recv:" + lin.getKey().getId() + ":" + Runner.runState.tempLins.get(lin.getKey().getId()));
-
-				
 			}
 		}
 		
 		return movStrm.build().toArray();
-	}
-	
+	}	
 
 
 		
@@ -424,43 +432,64 @@ public class Node {
 	}
 	
 	
-	/**	/**decoding messages sent by compileMPImessageTest(...) 
-	 * USED IN NON DISTRIBUTED (TEST) IMPLEMENTATIONS FOR COMPLICATED decompileMPImessage(int[] from1) 
-	 * 																		TO BE VALIDATED AGAINST
-	 * Set up a movement object handling dispersal from one node to another
-	 * 
-	 * @param from1
-	 * @param source
+	/**Decoding messages sent by compileMPImessageTest(...)
+	 * USED IN NON DISTRIBUTED (TEST) IMPLEMENTATIONS FOR COMPLICATED decompileMPImessage(int[] from1)
+	 *
+	 * Each destination group is encoded as:
+	 * [destination box ID], [number of lineages], [lineage records...]
+	 *
+	 * Each lineage record contains:
+	 * [lineage ID], [number of individuals dispersed],
+	 * [optional birth hour], [optional t_opt]
+	 *
+	 * @param from1 encoded dispersal message
 	 */
 	private void decompileMPImessageTest(long[] from1) {
-		GridBoxParallelization box = null;
-		for(int i = 0; i < from1.length; i++) {
-			long val = from1[i];
-			if(val < 0) //start of new box
-				box = activeGBPars[(int) (-val - 1)];
-			else { //[i] = lin id, [i + 1] = num moving
-
+	
+		int i = 0;
+	
+		while(i < from1.length) {
+	
+			//destination box ID
+			int boxID = (int) from1[i++];
+	
+			//number of lineage records for this destination
+			int numLineages = (int) from1[i++];
+	
+			GridBoxParallelization box = activeGBPars[boxID];
+	
+			for(int linI = 0; linI < numLineages; linI++) {
+	
+				long id = from1[i++];
+				long numMoving = from1[i++];
+	
 				if(Runner.settings.ctrl.saveBirthHour) {
-					box.addExt(new long[] {val, from1[i + 1], from1[i + 2]} );
-					i++;
-				}	
-				else
-					box.addExt(new long[] {val, from1[i + 1]} );
-				
-					//save t_opt
-					if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
-						long temp = from1[i + (Runner.settings.ctrl.saveBirthHour ? 3 : 2)];
-						Runner.runState.tempLins.put(val,
-								Float.intBitsToFloat((int) temp)
-							);
-						i++;
-					}
-				
-				i++;
-				
+					long birthHour = from1[i++];
+	
+					box.addExt(new long[] {
+							id,
+							numMoving,
+							birthHour
+					});
+				}
+				else {
+					box.addExt(new long[] {
+							id,
+							numMoving
+					});
+				}
+	
+				//save t_opt
+				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0) {
+					long temp = from1[i++];
+	
+					Runner.runState.tempLins.put(
+							id,
+							Float.intBitsToFloat((int) temp)
+					);
+				}
 			}
 		}
-
 	}
 
 

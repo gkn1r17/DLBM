@@ -72,7 +72,7 @@ public class GridBoxParallelization {
 			if(imNum != null && imNum > 0) {
 
 				lin.size += imNum; //update lineage size
-				if(!lin.isSunk()) //update total population size
+				if(!lin.isDormant()) //update total population size
 					size += imNum;
 				
 				if(size < 0)
@@ -90,7 +90,7 @@ public class GridBoxParallelization {
 				if(nextExt[0] == nextID) {
 					//add found external lin
 					lin.size += nextExt[1];
-					if(!lin.isSunk()) {
+					if(!lin.isDormant()) {
 						size += nextExt[1];
 						if(size < 0)
 							throw new Exception("adding external immigrants (in pop): size cannot be < 0. size = " + size + " id = " + id);
@@ -114,7 +114,7 @@ public class GridBoxParallelization {
 			Integer imNum = imEntry.getValue();
 			Lineage lin = imEntry.getKey();
 			
-			if(!lin.isSunk()) {
+			if(!lin.isDormant()) {
 				size += imNum;
 				if(size < 0)
 					throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
@@ -131,14 +131,11 @@ public class GridBoxParallelization {
 			//external (for cases where internal immigrant is also in external list)
 					
 			while(nextExt != null && nextExt[0] <= nextID) {
-				if(nextExt[0] == nextID) {
-					if(nextExt[1] > ControlConfig.SINK_OFFSET)
-						nextExt[1] = nextExt[1] - ControlConfig.SINK_OFFSET;
-	
+				if(nextExt[0] == nextID) {	
 					
 					//add found external lin
 					newLin.size += nextExt[1];
-					if(!newLin.isSunk()) {
+					if(!newLin.isDormant()) {
 						size += nextExt[1];
 						if(size < 0)
 							throw new Exception("adding internal immigrants (new): size cannot be < 0. size = " + size + " id = " + id);
@@ -176,7 +173,7 @@ public class GridBoxParallelization {
 				population.add(newLin);
 				lastID = extIm[0];
 			}
-			if(!newLin.isSunk()) {
+			if(!newLin.isDormant()) {
 				size += extIm[1];
 				if(size < 0)
 					throw new Exception("adding external immigrants (new): size cannot be < 0. size = " + size + " id = " + id);

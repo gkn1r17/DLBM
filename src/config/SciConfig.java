@@ -55,10 +55,11 @@ public class SciConfig {
 			/**standard deviation of normally distributed mutations in thermal optimum*/
 			public final float tempMutSD;
 			
-			//DORMANCY	
-			/**proportion of each lineage randomly selected to "sink" (be removed from growth/mortality but not dispersal processes) each growth timestep*/
-				/**same proportion of individuals from sunken lineages are unsunk*/
-			public final double sizeRefuge;
+			//DORMANCY
+			/**equilibrium fraction of individuals in the dormant state*/
+			public final double dormantFrac;
+			/**characteristic timescale (days) for relaxation towards the equilibrium dormant fraction*/
+			public final double dormantTauDay;
 
 			
 			/**If growth/mortality should be modelled "top down" i.e. 
@@ -120,9 +121,12 @@ public class SciConfig {
 
 			W = Float.parseFloat(iniFR.getParamValue("W", "Selection", false));
 			tempFile = Config.parseFilename(iniFR.getParamValue("TEMP_FILE", "Selection", false));
-			tempMutSD = Float.parseFloat(iniFR.getParamValue("TEMP_MUT_SD", "Selection", false));			
+			tempMutSD = Float.parseFloat(iniFR.getParamValue("TEMP_MUT_SD", "Selection", false));	
 			
-			sizeRefuge = Double.parseDouble(iniFR.getParamValue("SIZE_REFUGE", "Dormancy", false));
+			////////////////////////////////////////////////DORMANCY //////////////////////////////////////////////			
+			
+			dormantFrac = Double.parseDouble(iniFR.getParamValue("DORMANT_FRAC", "Dormancy", false));
+			dormantTauDay = Double.parseDouble(iniFR.getParamValue("DORMANT_TAU_DAY", "Dormancy", false));
 			
 	}
 

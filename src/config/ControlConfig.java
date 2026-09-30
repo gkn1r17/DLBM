@@ -62,15 +62,6 @@ public class ControlConfig {
 
 
 	
-	//------------ MANAGING LINEAGE ID'S: THESE SHOULDN'T NEED TOUCHING
-	/**Used internally to distinguish sunken lineages
-	 * TODO currently not compatible with mutation
-	 */
-	public static final long SINK_OFFSET = Long.MAX_VALUE;
-
-	
-	
-	
 	/**
 	 * 
 	 * @param iniFR Controls reading parameters from ini file/command line

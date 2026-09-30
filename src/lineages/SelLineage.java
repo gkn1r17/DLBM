@@ -108,24 +108,20 @@ public class SelLineage extends Lineage{
 	}
 
 
-	/**Make lineage sunken (or spore) lineage
-	 * 
-	 * @param sinkNum number to sink
-	 * @param neutral if neutral lineages
-	 * @return new sunken Lineage
+	/**Create a lineage representing individuals switched to the opposite dormancy state.
+	 *
+	 * Active lineages become dormant and dormant lineages become active.
+	 *
+	 * @param switchNum number of individuals switching state
+	 * @return new Lineage in the opposite dormancy state
 	 */
-	public Lineage makeSunk(int sinkNum) {
-		
-		
-		//if already sunk will subtract SINK_OFFSET indicating not sunk
-		//if not sunk will add SINK_OFFSET
-		//(this complex process is to avoid need of additional variable when huge amounts of lineages)
-		if(id >= ControlConfig.SINK_OFFSET) { //if already sunk then unsink
-				return new SelLineage(sinkNum, id  - ControlConfig.SINK_OFFSET, t_opt); //birthHour, t_opt); 
-		}
-		else {
-				return new SelLineage(sinkNum, id  + ControlConfig.SINK_OFFSET, t_opt); //birthHour, t_opt); 
-		}
+	@Override
+	public Lineage switchDormancyState(int switchNum) throws Exception {
+	
+		if(id == 0)
+			throw new Exception("Lineage ID 0 is reserved and cannot switch dormancy state");
+	
+		return new SelLineage(switchNum, -id, t_opt);
 	}
 
 	@Override
