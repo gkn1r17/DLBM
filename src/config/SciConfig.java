@@ -52,13 +52,8 @@ public class SciConfig {
 			public final float W;
 			/**path to temperature file (tenv of each location)*/
 			public final String tempFile;
-			/**topts of lineages will be uniformly distributed from tenv - (TEMP_START_RANGE / 2) to tenv + (TEMP_START_RANGE / 2) */
-			public final float tempStartRange;
-			/**topts of lineages will be uniformly distributed from tenv - (TEMP_START_RANGE / 2) to tenv + (TEMP_START_RANGE / 2) */
-			public final float tempMutIntv;
-			/**1e6 = topts can only be set at intervals of 1e-6*/
-			public final int tempGranularity;
-
+			/**standard deviation of normally distributed mutations in thermal optimum*/
+			public final float tempMutSD;
 			
 			//DORMANCY	
 			/**proportion of each lineage randomly selected to "sink" (be removed from growth/mortality but not dispersal processes) each growth timestep*/
@@ -100,16 +95,12 @@ public class SciConfig {
 			growthHours = Double.parseDouble(iniFR.getParamValue("GROWTH_HOURS", "TimeStepping", false));
 			dispHours = Double.parseDouble(iniFR.getParamValue("DISP_HOURS", "TimeStepping", false));
 			
-			
-			
 			////////////////////////////////////////////////Ecological //////////////////////////////////////////////			
-			
 			
 			growthRateDay = Double.parseDouble(iniFR.getParamValue("GROWTH_RATE_DAY", "Ecological", false));
 			mortalityDay = Double.parseDouble(iniFR.getParamValue("MORTALITY_DAY", "Ecological", false));
 			mutation = Double.parseDouble(iniFR.getParamValue("MUTATION", "Ecological", false));
 			topDown = iniFR.getParamValue("TOP_DOWN", "Ecological", false).trim().toLowerCase().equals("true");
-
 			
 			////////////////////////////////////////////////population //////////////////////////////////////////////			
 
@@ -119,24 +110,17 @@ public class SciConfig {
 			////////////////////////////////////////////////TransportMatrix //////////////////////////////////////////////			
 
 			numBoxes = Integer.parseInt(iniFR.getParamValue("NUM_BOXES", "TransportMatrix", false));
-			
-			
-			
 			tmFile = Config.parseFilename(iniFR.getParamValue("TM_FILE", "TransportMatrix", false));
-
 
 			////////////////////////////////////////////////Dispersal //////////////////////////////////////////////			
 			
 			dispScaler = Double.parseDouble(iniFR.getParamValue("DISP_SCALER", "Dispersal", false));
 			
-			////////////////////////////////////////////////Selection //////////////////////////////////////////////			
+			////////////////////////////////////////////////Selection & Mutation //////////////////////////////////////////////			
 
 			W = Float.parseFloat(iniFR.getParamValue("W", "Selection", false));
 			tempFile = Config.parseFilename(iniFR.getParamValue("TEMP_FILE", "Selection", false));
-			tempStartRange = Float.parseFloat(iniFR.getParamValue("TEMP_START_RANGE", "Selection", false));
-			tempMutIntv = Float.parseFloat(iniFR.getParamValue("TEMP_MUTINTV", "Selection", false));
-			tempGranularity = Integer.parseInt(iniFR.getParamValue("TEMP_GRANULARITY", "Selection", false));
-			
+			tempMutSD = Float.parseFloat(iniFR.getParamValue("TEMP_MUT_SD", "Selection", false));			
 			
 			sizeRefuge = Double.parseDouble(iniFR.getParamValue("SIZE_REFUGE", "Dormancy", false));
 			

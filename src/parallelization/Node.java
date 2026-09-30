@@ -322,8 +322,8 @@ public class Node {
 				//add t_opt if selective
 				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0) {
 					float temp = lin.getKey().getTopt();
-					//convert to int
-					movStrm.add((int) Math.round(temp * Runner.settings.sci.tempGranularity));
+					//convert float bits to integer bits
+					movStrm.add(Float.floatToIntBits(temp));
 				}
 
 			}
@@ -354,7 +354,7 @@ public class Node {
 				if(Runner.settings.ctrl.saveBirthHour)
 					movStrm.add(lin.getKey().getBirthHour());
 				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0)
-					movStrm.add(  Math.round(lin.getKey().getTopt() * Runner.settings.sci.tempGranularity));
+					movStrm.add(Float.floatToIntBits(lin.getKey().getTopt()));
 //				if( lin.getKey().getId() % 1000 == 0)
 //					System.out.println("Recv:" + lin.getKey().getId() + ":" + Runner.runState.tempLins.get(lin.getKey().getId()));
 
@@ -411,9 +411,9 @@ public class Node {
 				//save t_opt
 				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
 					long temp = from1[i + 1];
-					Runner.runState.tempLins.put(id, 
-								(float) ((double)temp / (double)Runner.settings.sci.tempGranularity)
-							);
+					Runner.runState.tempLins.put(id,
+							Float.intBitsToFloat((int) temp)
+						);
 					i++;
 				}
 
@@ -447,15 +447,14 @@ public class Node {
 				else
 					box.addExt(new long[] {val, from1[i + 1]} );
 				
-				//save t_opt
-				if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
-					long temp = from1[i + (Runner.settings.ctrl.saveBirthHour ? 3 : 2)];
-					Runner.runState.tempLins.put(val, 
-								(float) ((double)temp / (double)Runner.settings.sci.tempGranularity)
+					//save t_opt
+					if(Runner.settings.isSelective && Runner.settings.sci.mutation > 0){
+						long temp = from1[i + (Runner.settings.ctrl.saveBirthHour ? 3 : 2)];
+						Runner.runState.tempLins.put(val,
+								Float.intBitsToFloat((int) temp)
 							);
-					i++;
-				}
-
+						i++;
+					}
 				
 				i++;
 				

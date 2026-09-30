@@ -601,10 +601,6 @@ private final long minID;
 			
 				double curTemp = currentTemp;
 			
-				curTemp = Math.round(
-					curTemp * Runner.settings.sci.tempGranularity
-				) / (double) Runner.settings.sci.tempGranularity;
-			
 				for(long i = minID; i < minID + numLins; i++) {
 			
 					if(Runner.settings.ctrl.loadFile == null)

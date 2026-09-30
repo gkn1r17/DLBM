@@ -17,6 +17,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import cern.jet.random.Binomial;
+import cern.jet.random.Normal;
 import cern.jet.random.engine.DRand;
 import config.ControlConfig;
 import config.SciConfig;
@@ -130,12 +131,36 @@ public class SelLineage extends Lineage{
 	@Override
 	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
 										Binomial bn, DRand rd, long hour) throws Exception {
-		int numUpTemp = ProbFunctions.getBinomial(numMuts, 0.5, bn, rd);
-		float addToTemp = Runner.settings.sci.tempMutIntv;
-		for(int i =0; i < numMuts; i++) {
-			if(i == numUpTemp)
-				addToTemp = addToTemp * -1;
-			mutants.add(new SelLineage(1, phylogeny.getNextMutantCounter(),  t_opt + addToTemp)); //hour, t_opt + addToTemp));
+
+		// Standard deviation of the Gaussian change in thermal optimum
+		float tempMutSD = Runner.settings.sci.tempMutSD;
+	
+		// With zero thermal mutation, mutants form new lineages but inherit
+		// the parental thermal optimum exactly. No random number is drawn.
+		if(tempMutSD == 0.0f) {
+			for(int i = 0; i < numMuts; i++) {
+				mutants.add(new SelLineage(
+						1,
+						phylogeny.getNextMutantCounter(),
+						t_opt
+				));
+			}
+		}
+		else {
+			// Thermal mutations are independent Gaussian deviations from
+			// the parental optimum: delta Topt ~ N(0, tempMutSD^2)
+			Normal normal = new Normal(0.0, tempMutSD, rd);
+	
+			for(int i = 0; i < numMuts; i++) {
+				float mutantTopt = t_opt + (float) normal.nextDouble();
+	
+				// Each mutation event creates a new lineage containing one individual
+				mutants.add(new SelLineage(
+						1,
+						phylogeny.getNextMutantCounter(),
+						mutantTopt
+				));
+			}
 		}
 	}
 
