@@ -31,80 +31,92 @@ public class FileIO {
 
 	
 	/**Loads Transport Matrix from TSV column format:
-	 * Column1 = from
-	 * Column2 = to
-	 * Column3 = probability
-	 * 
-	 * @param filename
-	 * @param temps 2d array where [temperature of each grid box][month/day etc. or 0 if not seasonal]
-	 * 					or null if non selective
-	 * @param verbose
-	 * @return all GridBoxes
-	 * @throws FileNotFoundException
-	 */
+	* Column1 = from
+	* Column2 = to
+	* Column3 = probability
+	* 
+	* @param filename
+	* @param temps 2d array where [temperature of each grid box][month/day etc. or 0 if not seasonal]
+	* 					or null if non selective
+	* @param verbose
+	* @return all GridBoxes
+	* @throws FileNotFoundException
+	*/
 	public static GridBox[] loadTM(String filename,
-        double[][] temps, boolean verbose) throws FileNotFoundException {
+		double[][] temps, boolean verbose) throws FileNotFoundException {
 		
 		//double maxStay = 0;
 		
 		GridBox[] boxes = new GridBox[Runner.settings.numBoxes];
-        try{
-
-        	Scanner myFileReader = new Scanner(new File(filename));
-
-        	
-            while (myFileReader.hasNextLine()){
-                String[] tokens = myFileReader.nextLine().trim().split("\\s+");
-                
-                int from = (int) Double.parseDouble(tokens[0]) - 1;
-                int dest = (int) Double.parseDouble(tokens[1]) - 1;
-                
-                
-                if(from < Runner.settings.numBoxes && dest < Runner.settings.numBoxes) {
-                    
-                	
-                	
-	                double prob = Double.parseDouble(tokens[2]) * Runner.settings.sci.dispScaler; // * (settings.DISP_HOURS / 24.0);
-	                
-	                if(boxes[from] == null) {
-	                	boxes[from] = new GridBox(from, 
-	                					// temperature = eiter non selective run (-999)
-	                						//or from temps array
-	                			temps == null ? new double[] {-999.0} : temps[from]);
-	                }
 	
-	                if(prob != 0 && from != dest) {
-	            		GridBox destBox = boxes[dest];
-	            		if(destBox == null) { 
-	            			boxes[dest] = new GridBox(dest, 
-	            					temps == null ? new double[] {-999.0} : temps[dest]);
-	            			destBox = boxes[dest];
-	            		}
-		                boxes[from].addDest(prob, boxes[dest], null);
-	                }
-                }
-
-
-
-            }
-            
-            myFileReader.close();
-            
-            for(int i =0 ; i < Runner.settings.numBoxes; i++) {
-            	try {
+		try {
+	
+			Scanner myFileReader = new Scanner(new File(filename));
+	
+			int maxFrom = 0;
+	
+			while (myFileReader.hasNextLine()) {
+	
+				String[] tokens = myFileReader.nextLine().trim().split("\\s+");
+	
+				int fromFile = (int) Double.parseDouble(tokens[0]);
+				int from = fromFile - 1;
+				int dest = (int) Double.parseDouble(tokens[1]) - 1;
+	
+				//record largest source-box number in transport matrix
+				if(fromFile > maxFrom)
+					maxFrom = fromFile;
+	
+				if(from < Runner.settings.numBoxes && dest < Runner.settings.numBoxes) {
+	
+					double prob = Double.parseDouble(tokens[2]) * Runner.settings.sci.dispScaler; // * (settings.DISP_HOURS / 24.0);
+	
+					if(boxes[from] == null) {
+						boxes[from] = new GridBox(from,
+								// temperature = either non selective run (-999)
+								// or from temps array
+								temps == null ? new double[] {-999.0} : temps[from]);
+					}
+	
+					if(prob != 0 && from != dest) {
+	
+						GridBox destBox = boxes[dest];
+	
+						if(destBox == null) {
+							boxes[dest] = new GridBox(dest,
+									temps == null ? new double[] {-999.0} : temps[dest]);
+							destBox = boxes[dest];
+						}
+	
+						boxes[from].addDest(prob, boxes[dest], null);
+					}
+				}
+			}
+	
+			myFileReader.close();
+	
+			//check that configured number of boxes matches transport matrix
+			if(maxFrom != Runner.settings.numBoxes) {
+				throw new IllegalArgumentException(
+						"NUM_BOXES (" + Runner.settings.numBoxes +
+						") does not match the number of boxes in the transport matrix (" +
+						maxFrom + ")"
+				);
+			}
+	
+			for(int i = 0; i < Runner.settings.numBoxes; i++) {
+				try {
 					boxes[i].sortMovers(boxes);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-            }
-        
-        
-        
-        }catch (FileNotFoundException e){
-            throw e;
-        }
-        return boxes;
-		
+			}
+	
+		} catch (FileNotFoundException e) {
+			throw e;
+		}
+	
+		return boxes;
 	}
 	
 	

@@ -72,8 +72,7 @@ public class GridBoxParallelization {
 			if(imNum != null && imNum > 0) {
 
 				lin.size += imNum; //update lineage size
-				if(!lin.isDormant()) //update total population size
-					size += imNum;
+				size += imNum; //update total population size
 				
 				if(size < 0)
 					throw new Exception("adding internal immigrants (in pop): size cannot be < 0. size = " + size + " id = " + id);
@@ -90,12 +89,11 @@ public class GridBoxParallelization {
 				if(nextExt[0] == nextID) {
 					//add found external lin
 					lin.size += nextExt[1];
-					if(!lin.isDormant()) {
-						size += nextExt[1];
-						if(size < 0)
-							throw new Exception("adding external immigrants (in pop): size cannot be < 0. size = " + size + " id = " + id);
+					size += nextExt[1];
 
-					}
+					if(size < 0)
+						throw new Exception("adding external immigrants (in pop): size cannot be < 0. size = " + size + " id = " + id);
+
 					extIter.remove(); //so don't add twice
 				}				
 				nextExt = extIter.hasNext() ? extIter.next() : null;
@@ -114,12 +112,11 @@ public class GridBoxParallelization {
 			Integer imNum = imEntry.getValue();
 			Lineage lin = imEntry.getKey();
 			
-			if(!lin.isDormant()) {
-				size += imNum;
-				if(size < 0)
-					throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
+			size += imNum;
 
-			}
+			if(size < 0)
+				throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
+			
 			Lineage newLin = lin.copy(imNum);
 			
 			long nextID = newLin.getId();
@@ -135,13 +132,11 @@ public class GridBoxParallelization {
 					
 					//add found external lin
 					newLin.size += nextExt[1];
-					if(!newLin.isDormant()) {
-						size += nextExt[1];
-						if(size < 0)
-							throw new Exception("adding internal immigrants (new): size cannot be < 0. size = " + size + " id = " + id);
-	
-						
-					}
+					size += nextExt[1];
+					
+					if(size < 0)
+						throw new Exception("adding internal immigrants (new): size cannot be < 0. size = " + size + " id = " + id);
+					
 					extIter.remove(); //so don't add twice
 				}
 				nextExt = extIter.hasNext() ? extIter.next() : null;
@@ -173,12 +168,10 @@ public class GridBoxParallelization {
 				population.add(newLin);
 				lastID = extIm[0];
 			}
-			if(!newLin.isDormant()) {
-				size += extIm[1];
-				if(size < 0)
-					throw new Exception("adding external immigrants (new): size cannot be < 0. size = " + size + " id = " + id);
-
-			}
+			size += extIm[1];
+			
+			if(size < 0)
+				throw new Exception("adding external immigrants (new): size cannot be < 0. size = " + size + " id = " + id);
 		}
 
 		return size;

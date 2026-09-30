@@ -42,8 +42,8 @@ public class GridBox implements Comparable<GridBox>{
  
  /**list of currently present lineages*/	
  protected TreeSet<Lineage> population;
-/**current active population size; dormant individuals are excluded until they return to the active state*/
-public int size;
+ /**current total population size, including active and dormant individuals*/
+ public int size;
  /**carrying capacity*/
  private int myCC;
  
@@ -171,11 +171,8 @@ private final long minID;
 			if(includesBirthhours)
 				birthHour = Long.parseLong(tokens[i + birthIDx]);
 			
-			if(id > 0) 
-				//active cells
-				size += num; //add to population size
-			
-
+			//active and dormant cells both contribute to total population size
+			size += num;
 			
 			population.add(Lineage.makeNew(id, num, birthHour, tempLins, null));
 						
@@ -272,7 +269,12 @@ private final long minID;
 		
 		//New lineages created, will be added to population
 		LinkedList<Lineage> mutants = new LinkedList<Lineage>();
-
+		
+		//Individuals switching between active (+ID) and dormant (-ID) states.
+		//These are merged into the population after iteration to avoid
+		//modifying the TreeSet while iterating over it.
+		TreeMap<Lineage, Integer> dormancyTransfers = new TreeMap<Lineage, Integer>();
+		
 		for(Lineage s : population) { //for every lineage
 			
 			if(s.size == 0)
@@ -290,7 +292,7 @@ private final long minID;
 				
 				//active/dormant switching
 				if(Runner.settings.sci.dormantFrac > 0 && s.size > 0) {
-					switchDormancy(s, bn, rd);
+					switchDormancy(s, bn, rd, dormancyTransfers);
 				}
 				
 
@@ -305,14 +307,25 @@ private final long minID;
 		//incorporate mutants into regular population
 		while(!mutants.isEmpty())
 			population.add(mutants.removeFirst());
+		
+		//incorporate active/dormant state transfers
+		for(Lineage switched : dormancyTransfers.keySet()) {
+		
+			int switchNum = dormancyTransfers.get(switched);
+		
+			Lineage existing = population.ceiling(switched);
+		
+			if(existing != null && existing.getId() == switched.getId())
+				existing.size += switchNum;
+			else
+				population.add(switched.copy(switchNum));
+		}
+		
+		//remove state records with zero abundance
+		population.removeIf(s -> s.size == 0);
+		
+		}
 
-	} 
-
-	
-	
-	
-	
-	
 	
 /*******************************************************************************************/
 /***************************** DISPERSAL **********************************************/
@@ -611,8 +624,9 @@ private final long minID;
 	}
 
 
-	public void switchDormancy(Lineage s, Binomial bn, DRand rd) throws Exception {
-	
+	public void switchDormancy(Lineage s, Binomial bn, DRand rd,
+        TreeMap<Lineage, Integer> dormancyTransfers) throws Exception {
+
 		double dormantFrac = Runner.settings.sci.dormantFrac;
 		double tauDay = Runner.settings.sci.dormantTauDay;
 		double dtDay = Runner.settings.sci.dispHours / 24.0;
@@ -634,20 +648,14 @@ private final long minID;
 	
 		if(switchNum > 0) {
 	
+			//create corresponding lineage in opposite state
 			Lineage switched = s.switchDormancyState(switchNum);
 	
-			disperseToMe(switched, switchNum);
+			//record transfer for incorporation after population iteration
+			dormancyTransfers.merge(switched, switchNum, Integer::sum);
 	
+			//remove switched individuals from source state
 			s.size -= switchNum;
-	
-			//if lineage was active, remove newly dormant individuals
-			//from the active population size
-			if(!s.isDormant()) {
-				size -= switchNum;
-	
-				if(size < 0)
-					throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
-			}
 		}
 	}
 
