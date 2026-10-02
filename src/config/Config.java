@@ -47,6 +47,8 @@ public class Config {
 	/**Contains setting loaded from ini/command line for artificial TM
 	 * (not used in most simulations)*/
 	public final ArtificialTMConfig tm;
+	/**Continuous-model-specific settings.*/
+	public final ContinuousConfig continuous;
 	//---
 	
 	
@@ -94,6 +96,11 @@ public class Config {
 	 * @throws Exception
 	 */
 	public Config(String[] args, boolean isController, boolean verbose) throws Exception{
+		this(args, isController, verbose, false);
+	}
+
+	/**Construct settings, recording whether transport is deterministic in Settings.ini.*/
+	public Config(String[] args, boolean isController, boolean verbose, boolean deterministicTransport) throws Exception{
 		
 		IniFileReader iniFileReader = new IniFileReader(args, isController, verbose);
 		
@@ -102,6 +109,7 @@ public class Config {
 		sci = new SciConfig(iniFileReader);
 		ctrl = new ControlConfig(iniFileReader);
 		tm = new ArtificialTMConfig(iniFileReader);
+		continuous = deterministicTransport ? new ContinuousConfig(iniFileReader) : null;
 		
 		//---------- SCIENTIFIC CALCULATED
 		mortality = ctrl.tracerMode
@@ -151,7 +159,7 @@ public class Config {
 		
     	//all runs with Java simulation are with stochastic, not deterministic transport, 
 		//add this setting useful when output picked up by Matlab downstream functions
-		iniFileReader.appendToOutput("\n\n\nDET_TRANSPORT=false");
+		iniFileReader.appendToOutput("\n\n\nDET_TRANSPORT=" + deterministicTransport);
 		settingsIniOut = iniFileReader.settingsIniOut.toString();
     	checkForUnknownSettings(iniFileReader.settingsIni);
     	

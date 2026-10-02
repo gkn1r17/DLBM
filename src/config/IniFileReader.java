@@ -160,8 +160,7 @@ public class IniFileReader {
 	}
 
 	public void appendToOutput(String string) {
-    	settingsIniOut.append("\n\n\nDET_TRANSPORT=false");
-		
+    	settingsIniOut.append(string);
 	}
 
 	public void checkForUnknownSettings() {
