@@ -86,24 +86,32 @@ public final class ContinuousModel {
 
         double[] offsets = parseOffsets(settings.continuous.phenotypeOffsets);
         switch (settings.continuous.initMode) {
-            case "one_per_location":
-                if (offsets.length != 1 || offsets[0] != 0.0)
-                    throw new IllegalArgumentException(
-                            "CONT_INIT_MODE=one_per_location requires CONT_PHENOTYPE_OFFSETS=0.0");
-                phenotypesPerLocation = 1;
-                break;
-            case "local_phenotypes":
-                if (offsets.length < 1)
-                    throw new IllegalArgumentException("CONT_PHENOTYPE_OFFSETS must contain at least one value");
-                phenotypesPerLocation = offsets.length;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "Unknown CONT_INIT_MODE: " + settings.continuous.initMode
-                        + " (use one_per_location or local_phenotypes)");
-        }
+			case "one_per_location":
+				if (offsets.length != 1 || offsets[0] != 0.0)
+					throw new IllegalArgumentException(
+							"CONT_INIT_MODE=one_per_location requires CONT_PHENOTYPE_OFFSETS=0.0");
+				phenotypesPerLocation = 1;
+				break;
+		
+			case "local_phenotypes":
+				if (offsets.length < 1)
+					throw new IllegalArgumentException(
+							"CONT_PHENOTYPE_OFFSETS must contain at least one value");
+				phenotypesPerLocation = offsets.length;
+				break;
+		
+			case "global_phenotypes":
+				phenotypesPerLocation = settings.continuous.globalPhenotypeCount;
+				break;
+		
+			default:
+				throw new IllegalArgumentException(
+						"Unknown CONT_INIT_MODE: " + settings.continuous.initMode);
+		}
 
-        this.nPop = Math.multiplyExact(nLoc, phenotypesPerLocation);
+        this.nPop = settings.continuous.initMode.equals("global_phenotypes")
+			? phenotypesPerLocation
+			: Math.multiplyExact(nLoc, phenotypesPerLocation);
         long nState = (long)nLoc * nPop;
         if (nState > Integer.MAX_VALUE)
             throw new IllegalArgumentException("Continuous state exceeds Java array index limit: " + nState);
@@ -117,6 +125,7 @@ public final class ContinuousModel {
 
         locationTotal = new double[nLoc];
         populations = initialisePopulations(offsets);
+        
 
         workerCount = Math.min(settings.continuous.numWorkers, nPop);
         workerLocationTotals = new double[workerCount][nLoc];
@@ -144,22 +153,62 @@ public final class ContinuousModel {
     }
 
     private PopulationMeta[] initialisePopulations(double[] offsets) {
-        PopulationMeta[] meta = new PopulationMeta[nPop];
-        double abundancePerPhenotype = settings.initialP / phenotypesPerLocation;
-
-        for (int loc = 0; loc < nLoc; loc++) {
-            for (int ph = 0; ph < phenotypesPerLocation; ph++) {
-                int pop = loc * phenotypesPerLocation + ph;
-                long id = (long)loc * settings.mutantOffset + ph + 1L;
-                float tOpt = Float.NaN;
-                if (settings.isSelective)
-                    tOpt = (float)(temperatures[loc][0] + offsets[ph]);
-                meta[pop] = new PopulationMeta(id, loc, ph, tOpt);
-                active[index(loc, pop)] = abundancePerPhenotype;
-            }
-        }
-        return meta;
-    }
+		PopulationMeta[] meta = new PopulationMeta[nPop];
+		double abundancePerPhenotype = settings.continuous.initMode.equals("global_phenotypes")
+			? (double) settings.sci.K / phenotypesPerLocation
+			: settings.initialP / phenotypesPerLocation;
+	
+		if (settings.continuous.initMode.equals("global_phenotypes")) {
+	
+			int n = phenotypesPerLocation;
+	
+			double tMin = settings.continuous.globalPhenotypeMin;
+			double tMax = settings.continuous.globalPhenotypeMax;
+	
+			// Create globally shared lineages with evenly spaced thermal optima.
+			for (int ph = 0; ph < n; ph++) {
+	
+				double tOpt = n == 1
+						? tMin
+						: tMin + (tMax - tMin) * ph / (n - 1.0);
+	
+				meta[ph] = new PopulationMeta(
+						ph + 1L,
+						-1,
+						ph,
+						(float)tOpt
+				);
+			}
+	
+			// Initialise every lineage in every province.
+			for (int loc = 0; loc < nLoc; loc++) {
+				for (int ph = 0; ph < n; ph++) {
+					active[index(loc, ph)] = abundancePerPhenotype;
+				}
+			}
+	
+		} else {
+	
+			// Preserve the original local initialisation behaviour.
+			for (int loc = 0; loc < nLoc; loc++) {
+				for (int ph = 0; ph < phenotypesPerLocation; ph++) {
+	
+					int pop = loc * phenotypesPerLocation + ph;
+					long id = (long)loc * settings.mutantOffset + ph + 1L;
+	
+					float tOpt = Float.NaN;
+	
+					if (settings.isSelective)
+						tOpt = (float)(temperatures[loc][0] + offsets[ph]);
+	
+					meta[pop] = new PopulationMeta(id, loc, ph, tOpt);
+					active[index(loc, pop)] = abundancePerPhenotype;
+				}
+			}
+		}
+	
+		return meta;
+	}
 
     /**Advance one dispersal interval: ecology substeps, transport, then dormancy switching.*/
     public void step(long hour) {

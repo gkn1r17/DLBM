@@ -29,9 +29,9 @@ public final class ContinuousRunner {
         try {
             args = normaliseArguments(args);
             Config settings = new Config(args, true, true, true);
-            validate(settings);
+			validate(settings);
 
-            String runDir = null;
+			String runDir = null;
             if (PROFILE_WRITE_OUTPUT) {
                 runDir = makeRunDirectory(settings);
                 FileIO.makeSettingsFile(runDir, settings.getSettingsIniOut());

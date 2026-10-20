@@ -225,49 +225,40 @@ public class Config {
 			addRegularTimesteps(days, 360, durationDay);
 		}
 		else if (schedule.equals("visualisation")) {
-	
-			// daily through one week
-			addRegularTimesteps(days, 1, Math.min(7, durationDay));
-			
-			// weekly through three weeks
-			if (durationDay >= 14)
-				days.add(14L);
-			
-			if (durationDay >= 21)
-				days.add(21L);
-			
-			// monthly through one year
+
+			// Monthly through one year
 			addRegularTimesteps(days, 30, Math.min(360, durationDay));
-			
-			// yearly through nine years
+		
+			// Yearly through nine years
 			for (int n = 2; n <= 9; n++) {
 				long day = 360L * n;
-			
+		
 				if (day <= durationDay)
 					days.add(day);
 			}
-			
-			// thereafter:
+		
+			// Thereafter:
 			// 10,20,...90 years
 			// 100,200,...900 years
 			// 1000,2000,...9000 years
 			// etc.
 			long scale = 10;
-			
+		
 			while (360L * scale <= durationDay) {
-			
+		
 				for (int n = 1; n <= 9; n++) {
-			
+		
 					long day = 360L * scale * n;
-			
+		
 					if (day > durationDay)
 						break;
-			
+		
 					days.add(day);
 				}
-			
+		
 				scale *= 10;
-			}		}
+			}
+		}
 	
 		// Built-in schedules always include the end of the simulation
 		days.add(durationDay);
