@@ -50,7 +50,6 @@ import parallelization.RunnerParallelization;
 import test.GridBoxForComparison;
 import transportMatrix.GridBox;
 import transportMatrix.Phylogeny;
-import transportMatrix.artificialTM.MakeArtificialTM;
 
 public class Runner {
 	
@@ -229,34 +228,28 @@ public class Runner {
 		return seed;
 	}
 
-	/**Setup Transport Matrix
-	 * 
+	/**Set up the transport matrix and associated locations.
+	 *
 	 * @param tempLins temperature for each lineage
-	 * @return
+	 * @return list of grid boxes
 	 * @throws Exception
 	 */
-	private static ArrayList<GridBox> setupTM(ConcurrentHashMap<Long, Float> tempLins) throws Exception {
-		GridBox[] boxs;
-		if(settings.tm.buildTM)
-				boxs = MakeArtificialTM.makeUniformTM(); 
-		else {
-		
-				boxs = FileIO.loadTM(settings.sci.tmFile,  //TM configuration
-							FileIO.loadDoubleFile(settings.sci.tempFile), //Temp of each location
-							true
-						);
+	private static ArrayList<GridBox> setupTM(
+			ConcurrentHashMap<Long, Float> tempLins) throws Exception {
+	
+		GridBox[] boxs = FileIO.loadTM(
+				settings.sci.tmFile,
+				FileIO.loadDoubleFile(settings.sci.tempFile),
+				true
+		);
+	
+		ArrayList<GridBox> boxList = new ArrayList<>(Arrays.asList(boxs));
+	
+		// Initialise locations and lineage information
+		for (GridBox box : boxs) {
+			box.initIDSizeTemp(tempLins);
 		}
-		//		
-		
-		
-		ArrayList<GridBox> boxList = new ArrayList<GridBox>(Arrays.asList(boxs));
-		
-
-		//setup locations
-		for(GridBox box : boxs) { 
-			box.initIDSizeTemp(tempLins); //establish which lineage ids are associated with which locations 
-															//and (if selective) their thermal optima
-		}
+	
 		return boxList;
 	}
 

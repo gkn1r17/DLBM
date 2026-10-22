@@ -7,8 +7,6 @@ package config;
  * 2) Stores references to three Config objects holding config variables from the Ini files:
  * 	- SciConfig for Scientific Configuration settings
  *  - ControlConfig for non scientific (e.g. duration, seed, parallelization settings)
- *  - (ArtificialTMConfig in most simulations can be ignored 
- *  			but used if using a simple idealised TM which is generated dynamically)
  * 3) Calculates and stores various config variables that are calculated from the original config variables
  * 4) Checks for unused config fields and throws an exception
  * 5) Outputs to new Config file
@@ -44,9 +42,6 @@ public class Config {
 	/**Contains non-scientific ("control" e.g. IO/timestepping/parallelization) 
 	 * settings loaded from ini/command line */
 	public final ControlConfig ctrl;
-	/**Contains setting loaded from ini/command line for artificial TM
-	 * (not used in most simulations)*/
-	public final ArtificialTMConfig tm;
 	/**Continuous-model-specific settings.*/
 	public final ContinuousConfig continuous;
 	//---
@@ -64,8 +59,7 @@ public class Config {
 	/**starting population of each location (grid box) divided by K*/
 	/**should be equilibrium population, i.e. the population at which growth == mortality*/
 	public final double initialP;
-	/**number of locations in TM
-	 * Normally equal to value in ini but calculated if artificial TM used*/
+	/**Number of locations in the transport matrix.*/
 	public final int numBoxes;
 	public final boolean isSelective;
 	//-------------- CALCULATED CONTROL SETTINGS
@@ -108,7 +102,6 @@ public class Config {
 		
 		sci = new SciConfig(iniFileReader);
 		ctrl = new ControlConfig(iniFileReader);
-		tm = new ArtificialTMConfig(iniFileReader);
 		continuous = new ContinuousConfig(iniFileReader);
 		
 		//---------- SCIENTIFIC CALCULATED
@@ -126,9 +119,7 @@ public class Config {
 				  ?    1.0
 				  :    1 - (sci.growthRateDay / sci.mortalityDay) );
 
-		numBoxes = tm.buildTM 
-					?	tm.tmNumCols * tm.tmNumRows
-					:   sci.numBoxes;
+		numBoxes = sci.numBoxes;
 
     	
 

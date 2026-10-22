@@ -35,7 +35,6 @@ import mpi.Request;
 import mpi.Status;
 import parallelization.Cluster;
 import transportMatrix.GridBox;
-import transportMatrix.artificialTM.MakeArtificialTM;
 
 public class Node {
 	

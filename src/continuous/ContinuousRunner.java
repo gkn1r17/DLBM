@@ -125,8 +125,6 @@ public final class ContinuousRunner {
             throw new IllegalArgumentException("Continuous mode currently requires MUTATION=0");
         if (s.ctrl.loadFile != null)
             throw new IllegalArgumentException("Continuous restart/loading is not yet implemented; FILE_LOAD must be none");
-        if (s.tm.buildTM)
-            throw new IllegalArgumentException("Continuous mode currently requires a TM_FILE; BUILD_TM must be false");
         if (s.sci.K <= 0)
             throw new IllegalArgumentException("K must be > 0");
         if (s.sci.dormantFrac < 0.0 || s.sci.dormantFrac >= 1.0)
