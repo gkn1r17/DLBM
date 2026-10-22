@@ -109,7 +109,7 @@ public class Config {
 		sci = new SciConfig(iniFileReader);
 		ctrl = new ControlConfig(iniFileReader);
 		tm = new ArtificialTMConfig(iniFileReader);
-		continuous = deterministicTransport ? new ContinuousConfig(iniFileReader) : null;
+		continuous = new ContinuousConfig(iniFileReader);
 		
 		//---------- SCIENTIFIC CALCULATED
 		mortality = ctrl.tracerMode
