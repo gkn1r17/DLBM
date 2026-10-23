@@ -18,8 +18,8 @@ public class DispersalHandler implements Comparable<DispersalHandler>{
 
 	/**destination location*/
 	protected final GridBox dest;
-	/**probability*/
-	private final double prob;
+	/**Current probability of dispersal to this destination.*/
+	private double prob;
 	/**accumulated probability from iterating through all mov's from one source location*/
 	private double accumProb;
 	/**normalised accumulated probability */
@@ -81,6 +81,13 @@ public class DispersalHandler implements Comparable<DispersalHandler>{
 
 	public double getProb() {
 		return prob;
+	}
+	
+	public void setProb(double prob) {
+		if (!Double.isFinite(prob) || prob < 0.0 || prob > 1.0)
+			throw new IllegalArgumentException("Invalid dispersal probability: " + prob);
+	
+		this.prob = prob;
 	}
 
 	public GridBox getDest() {

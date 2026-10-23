@@ -125,38 +125,31 @@ public class SelLineage extends Lineage{
 	}
 
 	@Override
-	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
-										Binomial bn, DRand rd, long hour) throws Exception {
-
-		// Standard deviation of the Gaussian change in thermal optimum
+	protected void addMutants(int numMuts, int unavailableMuts,
+			Phylogeny phylogeny, LinkedList<Lineage> mutants,
+			Binomial bn, DRand rd, long hour) throws Exception {
+	
 		float tempMutSD = Runner.settings.sci.tempMutSD;
 	
-		// With zero thermal mutation, mutants form new lineages but inherit
-		// the parental thermal optimum exactly. No random number is drawn.
-		if(tempMutSD == 0.0f) {
-			for(int i = 0; i < numMuts; i++) {
-				mutants.add(new SelLineage(
-						1,
-						phylogeny.getNextMutantCounter(),
-						t_opt
-				));
-			}
-		}
-		else {
-			// Thermal mutations are independent Gaussian deviations from
-			// the parental optimum: delta Topt ~ N(0, tempMutSD^2)
-			Normal normal = new Normal(0.0, tempMutSD, rd);
+		Normal normal = tempMutSD == 0.0f
+				? null
+				: new Normal(0.0, tempMutSD, rd);
 	
-			for(int i = 0; i < numMuts; i++) {
-				float mutantTopt = t_opt + (float) normal.nextDouble();
+		for (int i = 0; i < numMuts; i++) {
 	
-				// Each mutation event creates a new lineage containing one individual
-				mutants.add(new SelLineage(
-						1,
-						phylogeny.getNextMutantCounter(),
-						mutantTopt
-				));
-			}
+			float mutantTopt = tempMutSD == 0.0f
+					? t_opt
+					: t_opt + (float) normal.nextDouble();
+	
+			SelLineage mutant = new SelLineage(
+					1,
+					phylogeny.getNextMutantCounter(),
+					mutantTopt
+			);
+	
+			mutant.unavailable = i < unavailableMuts ? 1 : 0;
+	
+			mutants.add(mutant);
 		}
 	}
 

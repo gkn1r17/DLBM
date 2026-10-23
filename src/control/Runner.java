@@ -36,6 +36,9 @@ import java.util.stream.IntStream.Builder;
 
 import cern.jet.random.engine.DRand;
 import config.Config;
+import config.TransportForcing;
+import config.TemperatureForcing;
+import dispersal.DispersalHandler;
 import inputOutput.FileIO;
 import inputOutput.Output;
 import lineages.Lineage;
@@ -68,7 +71,16 @@ public class Runner {
 	/**Starting time for simulation*/
 	public static long startHour;
 	//***
-
+	/**Annual or cyclic monthly transport forcing.*/
+	private static TransportForcing transportForcing;
+	/**Annual or cyclic monthly temperature forcing.*/
+	public static TemperatureForcing temperatureForcing;
+	/**Complete set of grid boxes, including those assigned to other nodes.*/
+	private static ArrayList<GridBox> transportBoxes;
+	/**References to the final dispersal handlers, indexed by forcing edge.*/
+	private static DispersalHandler[] transportHandlers;
+	/**Interpolated Ste probabilities.*/
+	private static double[] transportProbabilities;
 
 
 	//////////////////////////////////////////////////////////
@@ -138,6 +150,8 @@ public class Runner {
 		ConcurrentHashMap<Long, Float> tempLins = new ConcurrentHashMap<Long, Float>();
 		//Setup Transport matrix and associated locations
 		ArrayList<GridBox> allBoxs = setupTM( tempLins );
+		transportBoxes = allBoxs;
+		
 
 		
 		//setup random engines and seeds
@@ -148,6 +162,10 @@ public class Runner {
 					//return array of boxs with 
 					//boxs not handled on this server set to null to save memory
 		GridBox[] activeBoxsArr = runParallel.setupNodes(allBoxs, rd);
+		
+		// Node.setup() may replace handlers with parallel/distributed subclasses.
+		// Capture references to those final objects.
+		initialiseTransportHandlers(allBoxs);
 		
 		String simulationName;
 
@@ -228,32 +246,143 @@ public class Runner {
 		return seed;
 	}
 
-	/**Set up the transport matrix and associated locations.
-	 *
-	 * @param tempLins temperature for each lineage
-	 * @return list of grid boxes
-	 * @throws Exception
-	 */
+	/**Load transport forcing and construct the complete dispersal network.*/
 	private static ArrayList<GridBox> setupTM(
 			ConcurrentHashMap<Long, Float> tempLins) throws Exception {
 	
-		GridBox[] boxs = FileIO.loadTM(
+		transportForcing = TransportForcing.load(
 				settings.sci.tmFile,
-				FileIO.loadDoubleFile(settings.sci.tempFile),
-				true
+				settings.numBoxes
 		);
 	
-		ArrayList<GridBox> boxList = new ArrayList<>(Arrays.asList(boxs));
+		int nLoc = settings.numBoxes;
 	
-		// Initialise locations and lineage information
-		for (GridBox box : boxs) {
+		// Load annual or monthly temperature forcing.
+		temperatureForcing = TemperatureForcing.load(
+				settings.sci.tempFile,
+				nLoc
+		);
+		
+		GridBox[] boxes = new GridBox[nLoc];
+		
+		for (int loc = 0; loc < nLoc; loc++) {
+		
+			double initialTemp = temperatureForcing == null
+					? -999.0
+					: temperatureForcing.at(loc, 0.0);
+		
+			boxes[loc] = new GridBox(
+					loc,
+					new double[] {initialTemp}
+			);
+		}
+				
+	
+		// Initialise transition probabilities for the first dispersal interval.
+		transportProbabilities = new double[transportForcing.numEdges()];
+	
+		transportForcing.fillProbabilities(
+				settings.sci.dispHours / 2.0,
+				settings.sci.dispScaler,
+				transportProbabilities
+		);
+	
+		// Construct the union of all monthly source-destination connections.
+		// Self-transitions are implicit in GridBox and need no handler.
+		for (int src = 0; src < nLoc; src++) {
+	
+			for (int e = transportForcing.edgeStart(src);
+					e < transportForcing.edgeEnd(src); e++) {
+	
+				int dst = transportForcing.edgeDestination(e);
+	
+				if (src != dst) {
+					boxes[src].addDest(
+							transportProbabilities[e],
+							boxes[dst],
+							null
+					);
+				}
+			}
+		}
+	
+		ArrayList<GridBox> boxList = new ArrayList<>(Arrays.asList(boxes));
+	
+		for (GridBox box : boxes) {
+			box.sortMovers(boxes);
 			box.initIDSizeTemp(tempLins);
 		}
 	
 		return boxList;
 	}
 
-
+	/**Map forcing edges to handlers after parallel/distributed setup.*/
+	private static void initialiseTransportHandlers(
+			ArrayList<GridBox> boxes) {
+	
+		transportHandlers = new DispersalHandler[transportForcing.numEdges()];
+	
+		for (GridBox box : boxes) {
+	
+			int src = box.id;
+	
+			// Build a destination lookup for this source province.
+			HashMap<Integer, DispersalHandler> byDestination = new HashMap<>();
+	
+			for (DispersalHandler handler : box.getMovers()) {
+				byDestination.put(handler.getDest().id, handler);
+			}
+	
+			for (int e = transportForcing.edgeStart(src);
+					e < transportForcing.edgeEnd(src); e++) {
+	
+				int dst = transportForcing.edgeDestination(e);
+	
+				if (src == dst)
+					continue;
+	
+				DispersalHandler handler = byDestination.get(dst);
+	
+				if (handler == null)
+					throw new IllegalStateException(
+							"Missing transport handler: " + src + " -> " + dst
+					);
+	
+				transportHandlers[e] = handler;
+			}
+		}
+	}
+	
+	/**Update stochastic transport probabilities for a dispersal interval.*/
+	private static void updateTransport(long hour, ArrayList<GridBox> boxes) {
+	
+		if (!transportForcing.isSeasonal())
+			return;
+	
+		// The transition matrix represents the preceding dispersal interval.
+		double midpointHour = hour - settings.sci.dispHours / 2.0;
+	
+		transportForcing.fillProbabilities(
+				midpointHour,
+				settings.sci.dispScaler,
+				transportProbabilities
+		);
+	
+		// Update the actual handlers used by the parallel/distributed model.
+		for (int e = 0; e < transportHandlers.length; e++) {
+	
+			DispersalHandler handler = transportHandlers[e];
+	
+			if (handler != null)
+				handler.setProb(transportProbabilities[e]);
+		}
+	
+		// Recalculate cumulative probabilities for stochastic sampling.
+		for (GridBox box : boxes)
+			box.updateDispersalProbabilities();
+	}
+	
+	
 
 	//////////////////////////////////////////////////////////
 	////////////////// RUN /////////////////////////////////
@@ -301,11 +430,9 @@ public class Runner {
 					int checkpointCounter = settings.ctrl.checkpointIntervalDay * 24;
 					///////////////////////////////////////////
 
-			//initialise selective if needed
-			int tempChangesPerYear = 0;
+			// Legacy temperature index retained for compatibility with the parallelisation interface.
+			// Seasonal temperatures are now interpolated directly within GridBox.update().
 			int tempTidx = 0;
-			if(settings.sci.tempFile != null)
-				tempChangesPerYear = activeBoxes.get(0).getTempChangesPerYear();
 			
 			long duration = settings.ctrl.durationDay * 24L;
 			if(startHour > duration)
@@ -329,15 +456,23 @@ public class Runner {
 				runState.day = day;
 				runState.hour = hour;
 				
-				//find out which temperature currently on
-				if(settings.sci.tempFile != null) {
-					tempTidx = (int) Math.floor(dayOfYear / (360.0 / tempChangesPerYear)  );
-					if(tempTidx == tempChangesPerYear)
-						tempTidx --;
-				}
+				// Update seasonal transport before starting parallel ecological operations.
+				updateTransport(hour, transportBoxes);
 				
-				//RUN MAIN LOOP
+				// RUN MAIN LOOP
 				runParallel.runEcologyAndDispersal(day, tempTidx, hour);
+				
+				// Reset transport eligibility at the end of each holding interval.
+				int unavailableDays = settings.sci.unavailableDays;
+				
+				if (unavailableDays > 0 &&
+						hour % (unavailableDays * 24L) == 0) {
+				
+					for (GridBox box : activeBoxes) {
+						box.combineImmigrants();
+						box.resetAvailability();
+					}
+				}
 				//
 				
 				

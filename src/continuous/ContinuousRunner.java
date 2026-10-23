@@ -141,7 +141,13 @@ public final class ContinuousRunner {
             throw new IllegalArgumentException("CONT_OUTPUT_MODE must be binary or csv");
         if (s.continuous.outputMinAbundance < 0.0)
             throw new IllegalArgumentException("CONT_OUTPUT_MIN_ABUNDANCE must be >= 0");
-        long disp = Math.round(s.sci.dispHours);
+		if (s.sci.unavailableDays > 0 &&
+				(s.sci.unavailableDays * 24L) %
+						Math.round(s.sci.dispHours) != 0)
+			throw new IllegalArgumentException(
+					"UNAVAILABLE_DAYS must be aligned with DISP_HOURS");
+		
+		long disp = Math.round(s.sci.dispHours);
         for (long t : s.saveTimestepsArr)
             if (t % disp != 0)
                 throw new IllegalArgumentException("SAVE_TIMESTEPS_DAY contains a time not aligned with DISP_HOURS: hour " + t);

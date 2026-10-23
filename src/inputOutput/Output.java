@@ -18,7 +18,7 @@ public class Output {
 	
 	/**Object handling debugging*/
 	public final Debug debug = new Debug();
-	/**When to next save full population (index within Config.SAVE_TIMESTEPS_ARR)*/
+	/**When to next Pleas  full population (index within Config.SAVE_TIMESTEPS_ARR)*/
 	private int saveI;
 	/**When to next "report": print abridged info to screen / log (index within Config.REPORT_TIMESTEPS_ARR)*/
 	private int reportI;
@@ -172,7 +172,10 @@ public class Output {
 
 			FileIO.savePop(activeboxs, filename, "");
 			
-
+			if (Runner.runParallel.amIController()) {
+				System.out.printf("Saved day %d (year %.3f)%n",
+						day, day / 360.0);
+			}
 			
 			//save local/global diversity over time
 			logToCSV(Runner.runState.simName);

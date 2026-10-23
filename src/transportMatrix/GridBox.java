@@ -52,8 +52,6 @@ public class GridBox implements Comparable<GridBox>{
  private final double[] tsintvTemps; 
  /**current temperature*/
  private double currentTemp; 
- /**for calculating if temperature due change*/ 
- private int oldTempTsinvt = -1;
  /**lineage size at initialisation, 
  normally equal to settings.INIT_LIN_SIZE unless whole population = one lineage*/
  private int myLinSize = 1; 
@@ -209,37 +207,57 @@ private final long minID;
 	
 	
 	/**
-	 * Wrapper for ecological (growth/death) update loop
-	 * @param rd DRand uniform random number generator
-	 * @param bn binomial random number generator
-	 * @param pn poisson random number generator
-	 * @param currentTsintvTemp current time period for selection
-	 * @param hour 
-	 * @return 
-	 * @throws Exception
+	 * Ecological updates over one dispersal interval.
+	 * Environmental temperature is interpolated at each growth timestep.
 	 */
-	public void update(DRand rd, Binomial bn, Poisson pn, int currentTsintvTemp, long hour) throws Exception {
-		boolean tempChanged = false;
-		
-		//set current temperature
-		if(currentTsintvTemp != oldTempTsinvt && tsintvTemps.length > 1) {
-			this.currentTemp = tsintvTemps[currentTsintvTemp];
-			oldTempTsinvt = currentTsintvTemp;
-			tempChanged = true;
-		}
-		
-		//main ecological update loop repeats T_disp / T_growth
-		for(int i = 0; i < Runner.settings.growthPerDisp; i++)
-			growDieMutateAll(rd, bn, pn, i == Runner.settings.growthPerDisp - 1, i == 0 && tempChanged, hour);
+	public void update(DRand rd, Binomial bn, Poisson pn,
+					   int currentTsintvTemp, long hour) throws Exception {
 	
-		if(Runner.settings.ctrl.debug) {
-			int measuredSize = population.stream().mapToInt(lin -> lin.size).sum();
-			if(measuredSize != size)
-				throw new Exception("Debug: size of grid box " + id + "(" + measuredSize + ") does not match "
-						+ "predicted size ("  + size + ")");
-						
+		int growthSteps = (int)Math.round(Runner.settings.growthPerDisp);
+	
+		double intervalStartHour = hour - Runner.settings.sci.dispHours;
+	
+		boolean seasonalTemperature =
+				Runner.temperatureForcing != null
+				&& Runner.temperatureForcing.isSeasonal();
+	
+		for (int i = 0; i < growthSteps; i++) {
+	
+			if (seasonalTemperature) {
+	
+				// Midpoint of the current ecological timestep.
+				double growthHour = intervalStartHour
+						+ (i + 0.5) * Runner.settings.sci.growthHours;
+	
+				currentTemp = Runner.temperatureForcing.at(id, growthHour);
+			}
+	
+			boolean dispersing = i == growthSteps - 1;
+	
+			// Thermal growth coefficients must be refreshed whenever
+			// the seasonal environmental temperature changes.
+			growDieMutateAll(
+					rd,
+					bn,
+					pn,
+					dispersing,
+					seasonalTemperature,
+					hour
+			);
 		}
-
+	
+		if (Runner.settings.ctrl.debug) {
+			int measuredSize = population.stream()
+					.mapToInt(lin -> lin.size)
+					.sum();
+	
+			if (measuredSize != size)
+				throw new Exception(
+						"Debug: size of grid box " + id
+						+ "(" + measuredSize + ") does not match "
+						+ "predicted size (" + size + ")"
+				);
+		}
 	}
 
 
@@ -273,7 +291,7 @@ private final long minID;
 		//Individuals switching between active (+ID) and dormant (-ID) states.
 		//These are merged into the population after iteration to avoid
 		//modifying the TreeSet while iterating over it.
-		TreeMap<Lineage, Integer> dormancyTransfers = new TreeMap<Lineage, Integer>();
+		TreeMap<Lineage, Lineage> dormancyTransfers = new TreeMap<>();
 		
 		for(Lineage s : population) { //for every lineage
 			
@@ -309,16 +327,16 @@ private final long minID;
 			population.add(mutants.removeFirst());
 		
 		//incorporate active/dormant state transfers
-		for(Lineage switched : dormancyTransfers.keySet()) {
-		
-			int switchNum = dormancyTransfers.get(switched);
+		for (Lineage switched : dormancyTransfers.values()) {
 		
 			Lineage existing = population.ceiling(switched);
 		
-			if(existing != null && existing.getId() == switched.getId())
-				existing.size += switchNum;
-			else
-				population.add(switched.copy(switchNum));
+			if (existing != null && existing.getId() == switched.getId()) {
+				existing.size += switched.size;
+				existing.unavailable += switched.unavailable;
+			} else {
+				population.add(switched);
+			}
 		}
 		
 		//remove state records with zero abundance
@@ -342,14 +360,19 @@ private final long minID;
 	private int dispBinomial(Lineage lin, Binomial bn, DRand rd) throws Exception {
 		
 		//calculate total number of individuals to disperse
-		int numMov = ProbFunctions.getBinomial(lin.size, totalMovProb, bn, null);
+		int eligible = Runner.settings.sci.unavailableDays > 0
+				? lin.available()
+				: lin.size;
+		
+		int numMov = ProbFunctions.getBinomial(eligible, totalMovProb, bn, null);
+
 		if(numMov == 0)
 			return 0;
 				//if DispersalHandler probability too low to calculate binomial
 				//will take separate uniform random decision for every individual
 				boolean noBinomial = false;
 				if(numMov == -1) {
-					numMov = lin.size;
+					numMov = eligible;
 					noBinomial = true;
 				}
 		//
@@ -407,24 +430,29 @@ private final long minID;
 	}
 	
 
-
-	/**	get total DispersalHandler probability/ accumulative probability for each sink/ sorts sinks into most probable first (just for efficiency - no effect on how model works) 
-	 * 
-	 * @param boxes all locations in system
-	 * @throws Exception
-	 */
+	/**Sort dispersal destinations once, then initialise cumulative probabilities.*/
 	public void sortMovers(GridBox[] boxes) throws Exception {
 		Collections.sort(movers);
+		updateDispersalProbabilities();
+	}
+	
+	/**Recalculate cumulative dispersal probabilities without changing destination order.*/
+	public void updateDispersalProbabilities() {
 		double accum = 0.0;
-		for(DispersalHandler m : movers) {
+	
+		for (DispersalHandler m : movers) {
 			accum += m.getProb();
 			m.setAccumProb(accum);
 		}
-
+	
 		totalMovProb = accum;
-		
-		for(DispersalHandler m : movers) {
-			m.setNormedAccumProb(m.getAccumProb() / totalMovProb);
+	
+		if (totalMovProb > 0.0) {
+			for (DispersalHandler m : movers)
+				m.setNormedAccumProb(m.getAccumProb() / totalMovProb);
+		} else {
+			for (DispersalHandler m : movers)
+				m.setNormedAccumProb(0.0);
 		}
 	}
 	
@@ -625,41 +653,70 @@ private final long minID;
 
 
 	public void switchDormancy(Lineage s, Binomial bn, DRand rd,
-        TreeMap<Lineage, Integer> dormancyTransfers) throws Exception {
-
+			TreeMap<Lineage, Lineage> dormancyTransfers) throws Exception {
+	
 		double dormantFrac = Runner.settings.sci.dormantFrac;
 		double tauDay = Runner.settings.sci.dormantTauDay;
 		double dtDay = Runner.settings.sci.dispHours / 24.0;
 	
 		double rate;
 	
-		if(s.isDormant()) {
-			// dormant -> active
+		if (s.isDormant()) {
 			rate = (1.0 - dormantFrac) / tauDay;
-		}
-		else {
-			// active -> dormant
+		} else {
 			rate = dormantFrac / tauDay;
 		}
 	
 		double pSwitch = 1.0 - Math.exp(-rate * dtDay);
 	
-		int switchNum = ProbFunctions.getBinomial(s.size, pSwitch, bn, rd);
+		int switchNum;
+		int switchUnavailable = 0;
 	
-		if(switchNum > 0) {
+		if (Runner.settings.sci.unavailableDays > 0) {
 	
-			//create corresponding lineage in opposite state
+			// Both groups switch dormancy independently.
+			int switchAvailable = ProbFunctions.getBinomial(
+					s.available(), pSwitch, bn, rd);
+	
+			switchUnavailable = ProbFunctions.getBinomial(
+					s.unavailable, pSwitch, bn, rd);
+	
+			switchNum = switchAvailable + switchUnavailable;
+	
+		} else {
+	
+			// Preserve original behaviour when holding is disabled.
+			switchNum = ProbFunctions.getBinomial(
+					s.size, pSwitch, bn, rd);
+		}
+	
+		if (switchNum > 0) {
+	
 			Lineage switched = s.switchDormancyState(switchNum);
+			switched.unavailable = switchUnavailable;
 	
-			//record transfer for incorporation after population iteration
-			dormancyTransfers.merge(switched, switchNum, Integer::sum);
+			// Accumulate transfers sharing the same destination lineage.
+			Lineage previous = dormancyTransfers.putIfAbsent(
+					switched, switched);
 	
-			//remove switched individuals from source state
+			if (previous != null) {
+				previous.size += switched.size;
+				previous.unavailable += switched.unavailable;
+			}
+	
+			// Remove transferred individuals from the source.
 			s.size -= switchNum;
+			s.unavailable -= switchUnavailable;
 		}
 	}
 
 
+	public void resetAvailability() {
+		for (Lineage lin : population) {
+			lin.resetAvailability();
+		}
+	}
+	
 	public void setupParallelization() {
 		parallelGB = new GridBoxParallelization();
 	}

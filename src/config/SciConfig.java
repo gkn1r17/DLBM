@@ -46,6 +46,8 @@ public class SciConfig {
 
 			/**multiply each dispersal pathway by this*/
 			public final double dispScaler;
+			/** Days between resets of transport eligibility; 0 disables the mechanism. */
+			public final int unavailableDays;
 			
 			//SELECTION
 			/**niche width*/
@@ -116,6 +118,12 @@ public class SciConfig {
 			////////////////////////////////////////////////Dispersal //////////////////////////////////////////////			
 			
 			dispScaler = Double.parseDouble(iniFR.getParamValue("DISP_SCALER", "Dispersal", false));
+
+			unavailableDays = Integer.parseInt(
+					iniFR.getParamValue("UNAVAILABLE_DAYS", "Dispersal", false));
+			
+			if (unavailableDays < 0)
+				throw new IllegalArgumentException("UNAVAILABLE_DAYS must be >= 0");
 			
 			////////////////////////////////////////////////Selection & Mutation //////////////////////////////////////////////			
 

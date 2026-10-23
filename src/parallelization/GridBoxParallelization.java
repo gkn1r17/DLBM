@@ -71,8 +71,10 @@ public class GridBoxParallelization {
 			Integer imNum = localImmigrants.remove(lin);
 			if(imNum != null && imNum > 0) {
 
-				lin.size += imNum; //update lineage size
-				size += imNum; //update total population size
+			lin.size += imNum; //update lineage size
+			if (Runner.settings.sci.unavailableDays > 0)
+				lin.unavailable += imNum;
+			size += imNum; //update total population size
 				
 				if(size < 0)
 					throw new Exception("adding internal immigrants (in pop): size cannot be < 0. size = " + size + " id = " + id);
@@ -89,6 +91,8 @@ public class GridBoxParallelization {
 				if(nextExt[0] == nextID) {
 					//add found external lin
 					lin.size += nextExt[1];
+					if (Runner.settings.sci.unavailableDays > 0)
+						lin.unavailable += (int) nextExt[1];
 					size += nextExt[1];
 
 					if(size < 0)
@@ -118,6 +122,8 @@ public class GridBoxParallelization {
 				throw new Exception("size cannot be < 0. size = " + size + " id = " + id);
 			
 			Lineage newLin = lin.copy(imNum);
+			if (Runner.settings.sci.unavailableDays > 0)
+				newLin.unavailable = imNum;
 			
 			long nextID = newLin.getId();
 			if(Runner.settings.ctrl.tracerMode)
@@ -132,6 +138,8 @@ public class GridBoxParallelization {
 					
 					//add found external lin
 					newLin.size += nextExt[1];
+					if (Runner.settings.sci.unavailableDays > 0)
+						newLin.unavailable += (int) nextExt[1];
 					size += nextExt[1];
 					
 					if(size < 0)
@@ -162,9 +170,13 @@ public class GridBoxParallelization {
 			//if two copies of same lineage arrived from different nodes
 			if(lastID == extIm[0]) {
 				newLin.size += extIm[1];
+				if (Runner.settings.sci.unavailableDays > 0)
+					newLin.unavailable += (int) extIm[1];
 			}
 			else {
 				newLin = Lineage.makeNewFromDist(extIm, Runner.runState.tempLins, null);
+				if (Runner.settings.sci.unavailableDays > 0)
+					newLin.unavailable = (int) extIm[1];
 				population.add(newLin);
 				lastID = extIm[0];
 			}

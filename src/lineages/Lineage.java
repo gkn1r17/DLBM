@@ -25,6 +25,20 @@ import util.ProbFunctions;
 public abstract class Lineage implements Comparable<Lineage>{
 
 	public int size = 0;
+
+	/** Number of individuals temporarily unavailable for transport. */
+	public int unavailable = 0;
+	
+	/** Number of individuals eligible for transport. */
+	public int available() {
+		return size - unavailable;
+	}
+	
+	/** Restore transport eligibility to the entire lineage. */
+	public void resetAvailability() {
+		unavailable = 0;
+	}
+
 	protected final long id;
 	//protected final long birthHour;
 	
@@ -111,46 +125,112 @@ public abstract class Lineage implements Comparable<Lineage>{
 	 * @return
 	 * @throws Exception
 	 */
-	public int growDie(boolean willGrow, double growth, double mortality,  
-			double temp, boolean tempChanged, 
-			GridBox gridBox, Poisson pn, Binomial bn, DRand rd, 
+	public int growDie(boolean willGrow, double growth, double mortality,
+			double temp, boolean tempChanged,
+			GridBox gridBox, Poisson pn, Binomial bn, DRand rd,
 			Phylogeny phylogeny, LinkedList<Lineage> mutants, long hour) throws Exception {
-		
-		//******** GROWTH
-		int add = willGrow ?
-				ProbFunctions.getBinomial(size, growth  * getSelectiveGrowth(temp, tempChanged, Runner.settings.sci.W), bn, rd) :
-					0;
-		//
-		
-		
-		//******** MORTALITY
-		int die = ProbFunctions.getBinomial(size, mortality, bn, rd);
-		//
-		
-		
-		//******** MUTATION 
-		int mutate = (add > 0 && Runner.settings.sci.mutation > 0) ?
-					ProbFunctions.getBinomial(add, Runner.settings.sci.mutation, bn, rd) :
-						0;
-		if(mutate > 0) {
-			addMutants(mutate, phylogeny,  mutants, bn, rd, hour);
-			if(Runner.settings.mutantTimestepsArr != null)
-				phylogeny.addMutants(id, mutate, hour); //add record of mutants for outputting as phylogeny
+	
+		double growthProb = growth * getSelectiveGrowth(
+				temp, tempChanged, Runner.settings.sci.W);
+	
+		int add;
+		int die;
+		int mutate;
+	
+		if (Runner.settings.sci.unavailableDays == 0) {
+	
+			// Original demographic calculations.
+			add = willGrow
+					? ProbFunctions.getBinomial(size, growthProb, bn, rd)
+					: 0;
+	
+			die = ProbFunctions.getBinomial(size, mortality, bn, rd);
+	
+			mutate = (add > 0 && Runner.settings.sci.mutation > 0)
+					? ProbFunctions.getBinomial(
+							add, Runner.settings.sci.mutation, bn, rd)
+					: 0;
+	
+			if (mutate > 0) {
+				addMutants(mutate, 0, phylogeny, mutants, bn, rd, hour);
+			}
+	
+		} else {
+	
+			int available = size - unavailable;
+	
+			// Births inherit parental transport availability.
+			int addAvailable = willGrow
+					? ProbFunctions.getBinomial(available, growthProb, bn, rd)
+					: 0;
+	
+			int addUnavailable = willGrow
+					? ProbFunctions.getBinomial(unavailable, growthProb, bn, rd)
+					: 0;
+	
+			add = addAvailable + addUnavailable;
+	
+			// Mortality acts independently on both populations.
+			int dieAvailable = ProbFunctions.getBinomial(
+					available, mortality, bn, rd);
+	
+			int dieUnavailable = ProbFunctions.getBinomial(
+					unavailable, mortality, bn, rd);
+	
+			die = dieAvailable + dieUnavailable;
+	
+			// Mutation occurs only among newborn cells.
+			int mutateAvailable = (addAvailable > 0
+					&& Runner.settings.sci.mutation > 0)
+					? ProbFunctions.getBinomial(
+							addAvailable, Runner.settings.sci.mutation, bn, rd)
+					: 0;
+	
+			int mutateUnavailable = (addUnavailable > 0
+					&& Runner.settings.sci.mutation > 0)
+					? ProbFunctions.getBinomial(
+							addUnavailable, Runner.settings.sci.mutation, bn, rd)
+					: 0;
+	
+			mutate = mutateAvailable + mutateUnavailable;
+	
+			if (mutate > 0) {
+				addMutants(mutate, mutateUnavailable,
+						phylogeny, mutants, bn, rd, hour);
+			}
+	
+			// Update unavailable abundance.
+			// Mutant offspring leave this lineage.
+			unavailable += addUnavailable
+					- dieUnavailable
+					- mutateUnavailable;
 		}
-		if(Runner.settings.ctrl.debugMutants)
+	
+		if (mutate > 0 && Runner.settings.mutantTimestepsArr != null) {
+			phylogeny.addMutants(id, mutate, hour);
+		}
+	
+		if (Runner.settings.ctrl.debugMutants) {
 			gridBox.debugMutants(mutate, add - die);
-		//
-		
-		
-		//add net population size change for *Lineage*
+		}
+	
+		// Update total abundance of this lineage.
 		size += add - die - mutate;
-		if(size < 0)
-			throw new Exception("error in Lineage growth: size cannot be < 0. size = " + size + " id = " + id);
-		
-		//return net population size change for *GridBox* 
-									//(i.e. net population size change for *Lineage* + mutants)
+	
+		if (size < 0) {
+			throw new Exception(
+					"error in Lineage growth: size cannot be < 0. size = "
+					+ size + " id = " + id);
+		}
+	
+		if (unavailable < 0 || unavailable > size) {
+			throw new Exception(
+					"Invalid unavailable population: unavailable = "
+					+ unavailable + " size = " + size + " id = " + id);
+		}
+	
+		// Includes mutant offspring added to other lineages.
 		return add - die;
-		
 	}
 	
 	/**When mutating, add mutants to temporary cache to add to population before next updating
@@ -165,10 +245,9 @@ public abstract class Lineage implements Comparable<Lineage>{
 	 * @param hour hour of mutation
 	 * @throws Exception
 	 */
-	protected abstract void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants,
-																			Binomial bn, DRand rd, long hour) throws Exception;
-		
-
+	protected abstract void addMutants(int numMuts, int unavailableMuts,
+			Phylogeny phylogeny, LinkedList<Lineage> mutants,
+			Binomial bn, DRand rd, long hour) throws Exception;
 
 
 	/**Create a lineage in the opposite dormancy state.

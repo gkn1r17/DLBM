@@ -30,13 +30,18 @@ public class NeutralLineage extends Lineage {
 	}
 
 	@Override
-	protected void addMutants(int numMuts, Phylogeny phylogeny, LinkedList<Lineage> mutants, Binomial bn, DRand rd, long hour) { 
-			for(int i =0; i < numMuts; i++) {
-				long mutID = phylogeny.getNextMutantCounter();
-				//System.out.println("phylo," + id + "," +  mutID);
-				
-				mutants.add(new NeutralLineage(1, mutID)); //, hour));
-			}
+	protected void addMutants(int numMuts, int unavailableMuts,
+			Phylogeny phylogeny, LinkedList<Lineage> mutants,
+			Binomial bn, DRand rd, long hour) {
+	
+		for (int i = 0; i < numMuts; i++) {
+			long mutID = phylogeny.getNextMutantCounter();
+	
+			NeutralLineage mutant = new NeutralLineage(1, mutID);
+			mutant.unavailable = i < unavailableMuts ? 1 : 0;
+	
+			mutants.add(mutant);
+		}
 	}
 
 

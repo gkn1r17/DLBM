@@ -1,13 +1,11 @@
 package continuous;
 
 import config.Config;
+import config.TemperatureForcing;
+import config.TransportForcing;
 import lineages.SelLineage;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.Phaser;
 
 /**
@@ -36,15 +34,20 @@ public final class ContinuousModel {
     private final int nLoc;
     private final int nPop;
     private final int phenotypesPerLocation;
-    private final double[][] temperatures;
-    private final int tempIntervals;
+    private final TemperatureForcing temperatureForcing;
     private final PopulationMeta[] populations;
 
     // Dense, location-major: index = location*nPop + population.
     private double[] active;
     private double[] dormant;
     private double[] activeWork;
-    private double[] dormantWork;
+	private double[] dormantWork;
+	
+	// Population temporarily unavailable for transport.
+	private double[] activeUnavailable;
+	private double[] dormantUnavailable;
+	private double[] activeUnavailableWork;
+	private double[] dormantUnavailableWork;
 
     // Active abundance at each location. Dormant cells do not contribute to ecology.
     private final double[] locationTotal;
@@ -58,14 +61,16 @@ public final class ContinuousModel {
     private volatile WorkerOperation workerOperation = WorkerOperation.IDLE;
     private volatile double[] workerSource;
     private volatile double[] workerDestination;
+	private volatile double[] workerUnavailableSource;
+	private volatile double[] workerUnavailableDestination;
     private volatile RuntimeException workerFailure;
 
-    // Sparse transport, grouped by source.
-    private final int[] edgeStart;
-    private final int[] edgeDest;
-    private final double[] edgeProb;
+	// Sparse transport, grouped by source.
+	private final TransportForcing transportForcing;
+	private final int[] edgeStart;
+	private final int[] edgeDest;
+	private final double[] edgeProb;
 
-    private int currentTempIndex = -1;
     private double[] thermalGrowth;
 
     // Coarse profiling only. Timers surround whole model phases, never hot loops.
@@ -74,15 +79,14 @@ public final class ContinuousModel {
     private long profileTotalNanos;
 
     private enum WorkerOperation {
-        IDLE, ECOLOGY, REFRESH_TOTALS, TRANSPORT, STOP
+        IDLE, ECOLOGY, REFRESH_TOTALS, TRANSPORT, HOLDING_TRANSPORT, STOP
     }
 
 
     public ContinuousModel(Config settings) throws Exception {
         this.settings = settings;
         this.nLoc = settings.numBoxes;
-        this.temperatures = loadTemperatures(settings.sci.tempFile, nLoc);
-        this.tempIntervals = temperatures == null ? 1 : temperatures[0].length;
+        this.temperatureForcing = TemperatureForcing.load(settings.sci.tempFile, nLoc);
 
         double[] offsets = parseOffsets(settings.continuous.phenotypeOffsets);
         switch (settings.continuous.initMode) {
@@ -118,9 +122,19 @@ public final class ContinuousModel {
 
         active = new double[(int)nState];
         activeWork = new double[(int)nState];
+		
+		if (settings.sci.unavailableDays > 0) {
+			activeUnavailable = new double[(int)nState];
+			activeUnavailableWork = new double[(int)nState];
+		}
         if (settings.sci.dormantFrac > 0.0) {
             dormant = new double[(int)nState];
-            dormantWork = new double[(int)nState];
+			dormantWork = new double[(int)nState];
+			
+			if (settings.sci.unavailableDays > 0) {
+				dormantUnavailable = new double[(int)nState];
+				dormantUnavailableWork = new double[(int)nState];
+			}
         }
 
         locationTotal = new double[nLoc];
@@ -141,15 +155,34 @@ public final class ContinuousModel {
         }
         refreshLocationTotals();
 
-        Transport transport = loadTransport(settings.sci.tmFile, nLoc, settings.sci.dispScaler);
-        edgeStart = transport.edgeStart;
-        edgeDest = transport.edgeDest;
-        edgeProb = transport.edgeProb;
+		transportForcing = TransportForcing.load(settings.sci.tmFile, nLoc);
+		
+		edgeStart = new int[nLoc + 1];
+		edgeDest = new int[transportForcing.numEdges()];
+		edgeProb = new double[transportForcing.numEdges()];
+		
+		for (int src = 0; src < nLoc; src++) {
+			edgeStart[src] = transportForcing.edgeStart(src);
+		
+			for (int e = transportForcing.edgeStart(src);
+					e < transportForcing.edgeEnd(src); e++) {
+				edgeDest[e] = transportForcing.edgeDestination(e);
+			}
+		}
+		
+		edgeStart[nLoc] = transportForcing.numEdges();
+		
+		// Initialise transport probabilities.
+		transportForcing.fillProbabilities(
+				settings.sci.dispHours / 2.0,
+				settings.sci.dispScaler,
+				edgeProb
+		);
 
         if (settings.isSelective) {
-            thermalGrowth = new double[(int)nState];
-            updateThermalGrowth(0);
-        }
+			thermalGrowth = new double[(int)nState];
+			updateThermalGrowth(0.0);
+		}
     }
 
     private PopulationMeta[] initialisePopulations(double[] offsets) {
@@ -197,9 +230,9 @@ public final class ContinuousModel {
 					long id = (long)loc * settings.mutantOffset + ph + 1L;
 	
 					float tOpt = Float.NaN;
-	
+
 					if (settings.isSelective)
-						tOpt = (float)(temperatures[loc][0] + offsets[ph]);
+						tOpt = (float)(temperatureForcing.at(loc, 0.0) + offsets[ph]);
 	
 					meta[pop] = new PopulationMeta(id, loc, ph, tOpt);
 					active[index(loc, pop)] = abundancePerPhenotype;
@@ -214,23 +247,55 @@ public final class ContinuousModel {
     public void step(long hour) {
         long stepStarted = System.nanoTime();
 
-        int tempIndex = temperatureIndex(hour);
-        if (settings.isSelective && tempIndex != currentTempIndex)
-            updateThermalGrowth(tempIndex);
+		int growthSteps = (int)Math.round(settings.growthPerDisp);
+		long phaseStarted = System.nanoTime();
+		
+		double intervalStartHour = hour - settings.sci.dispHours;
+		
+		for (int i = 0; i < growthSteps; i++) {
+		
+			// Temperature at the midpoint of this ecological timestep
+			double growthHour = intervalStartHour
+					+ (i + 0.5) * settings.sci.growthHours;
+		
+			if (settings.isSelective && temperatureForcing.isSeasonal())
+				updateThermalGrowth(growthHour);
+		
+			ecologyStep();
+		}
+		
+		profileEcologyNanos += System.nanoTime() - phaseStarted;
 
-        int growthSteps = (int)Math.round(settings.growthPerDisp);
-        long phaseStarted = System.nanoTime();
-        for (int i = 0; i < growthSteps; i++)
-            ecologyStep();
-        profileEcologyNanos += System.nanoTime() - phaseStarted;
-
-        phaseStarted = System.nanoTime();
-        transport(active, activeWork);
-        profileTransportNanos += System.nanoTime() - phaseStarted;
-
-        double[] swap = active;
-        active = activeWork;
-        activeWork = swap;
+		phaseStarted = System.nanoTime();
+		
+		// Evaluate transport at the midpoint of the dispersal interval.
+		double transportHour = hour - settings.sci.dispHours / 2.0;
+		
+		if (transportForcing.isSeasonal()) {
+			transportForcing.fillProbabilities(
+					transportHour,
+					settings.sci.dispScaler,
+					edgeProb
+			);
+		}
+		
+		if (activeUnavailable == null)
+			transport(active, activeWork);
+		else
+			transportHolding(active, activeUnavailable,
+					activeWork, activeUnavailableWork);
+		
+		profileTransportNanos += System.nanoTime() - phaseStarted;
+		
+		double[] swap = active;
+		active = activeWork;
+		activeWork = swap;
+		
+		if (activeUnavailable != null) {
+			swap = activeUnavailable;
+			activeUnavailable = activeUnavailableWork;
+			activeUnavailableWork = swap;
+		}
 
         // Transport changes local active abundance. Refresh once per dispersal
         // interval, then carry the totals through the ecology substeps.
@@ -238,17 +303,38 @@ public final class ContinuousModel {
 
         if (dormant != null) {
             phaseStarted = System.nanoTime();
-            transport(dormant, dormantWork);
-            profileTransportNanos += System.nanoTime() - phaseStarted;
-
-            swap = dormant;
-            dormant = dormantWork;
-            dormantWork = swap;
+			if (dormantUnavailable == null)
+				transport(dormant, dormantWork);
+			else
+				transportHolding(dormant, dormantUnavailable,
+						dormantWork, dormantUnavailableWork);
+			
+			profileTransportNanos += System.nanoTime() - phaseStarted;
+			
+			swap = dormant;
+			dormant = dormantWork;
+			dormantWork = swap;
+			
+			if (dormantUnavailable != null) {
+				swap = dormantUnavailable;
+				dormantUnavailable = dormantUnavailableWork;
+				dormantUnavailableWork = swap;
+			}
 
             switchDormancy();
         }
 
-        profileTotalNanos += System.nanoTime() - stepStarted;
+        // Restore transport eligibility at the end of each holding interval.
+		if (activeUnavailable != null &&
+				hour % (settings.sci.unavailableDays * 24L) == 0) {
+		
+			Arrays.fill(activeUnavailable, 0.0);
+		
+			if (dormantUnavailable != null)
+				Arrays.fill(dormantUnavailable, 0.0);
+		}
+		
+		profileTotalNanos += System.nanoTime() - stepStarted;
     }
 
     private void ecologyStep() {
@@ -267,7 +353,19 @@ public final class ContinuousModel {
         runWorkers(WorkerOperation.TRANSPORT, source, destination);
     }
 
-    private void runWorkers(WorkerOperation operation, double[] source, double[] destination) {
+    private void transportHolding(double[] source, double[] unavailableSource,
+			double[] destination, double[] unavailableDestination) {
+	
+		Arrays.fill(destination, 0.0);
+		Arrays.fill(unavailableDestination, 0.0);
+	
+		workerUnavailableSource = unavailableSource;
+		workerUnavailableDestination = unavailableDestination;
+	
+		runWorkers(WorkerOperation.HOLDING_TRANSPORT, source, destination);
+	}
+	
+	private void runWorkers(WorkerOperation operation, double[] source, double[] destination) {
         workerFailure = null;
         workerSource = source;
         workerDestination = destination;
@@ -322,9 +420,17 @@ public final class ContinuousModel {
                         case REFRESH_TOTALS:
                             refreshTotalsBlock();
                             break;
-                        case TRANSPORT:
-                            transportBlock(workerSource, workerDestination);
-                            break;
+						case TRANSPORT:
+							transportBlock(workerSource, workerDestination);
+							break;
+						
+						case HOLDING_TRANSPORT:
+							transportHoldingBlock(
+									workerSource,
+									workerUnavailableSource,
+									workerDestination,
+									workerUnavailableDestination);
+							break;
                         default:
                             break;
                     }
@@ -382,7 +488,9 @@ public final class ContinuousModel {
                         if (next < 0.0 && next > -1e-14) next = 0.0;
                         if (next < 0.0)
                             throw new IllegalStateException("Negative continuous abundance at location " + loc);
-                        active[idx0] = next;
+						active[idx0] = next;
+						if (activeUnavailable != null)
+							activeUnavailable[idx0] *= next / a0;
                         sum0 += next;
                     }
 
@@ -393,8 +501,10 @@ public final class ContinuousModel {
                         if (next < 0.0 && next > -1e-14) next = 0.0;
                         if (next < 0.0)
                             throw new IllegalStateException("Negative continuous abundance at location " + loc);
-                        active[idx1] = next;
-                        sum1 += next;
+						active[idx1] = next;
+						if (activeUnavailable != null)
+							activeUnavailable[idx1] *= next / a1;			
+						sum1 += next;
                     }
 
                     double a2 = active[idx2];
@@ -405,6 +515,8 @@ public final class ContinuousModel {
                         if (next < 0.0)
                             throw new IllegalStateException("Negative continuous abundance at location " + loc);
                         active[idx2] = next;
+						if (activeUnavailable != null)
+							activeUnavailable[idx2] *= next / a2;
                         sum2 += next;
                     }
 
@@ -416,6 +528,8 @@ public final class ContinuousModel {
                         if (next < 0.0)
                             throw new IllegalStateException("Negative continuous abundance at location " + loc);
                         active[idx3] = next;
+						if (activeUnavailable != null)
+							activeUnavailable[idx3] *= next / a3;
                         sum3 += next;
                     }
                 }
@@ -430,7 +544,9 @@ public final class ContinuousModel {
                     if (next < 0.0 && next > -1e-14) next = 0.0;
                     if (next < 0.0)
                         throw new IllegalStateException("Negative continuous abundance at location " + loc);
-                    active[idx] = next;
+					active[idx] = next;
+					if (activeUnavailable != null)
+						activeUnavailable[idx] *= next / a;
                     sum0 += next;
                 }
 
@@ -466,9 +582,64 @@ public final class ContinuousModel {
                 }
             }
         }
-    }
+    
 
-    private void switchDormancy() {
+		private void transportHoldingBlock(double[] source,
+			double[] unavailableSource,
+			double[] destination,
+			double[] unavailableDestination) {
+	
+		for (int src = 0; src < nLoc; src++) {
+	
+			int srcBase = src * nPop;
+	
+			// Unavailable cells remain in their current province.
+			for (int pop = popStart; pop < popEnd; pop++) {
+				int idx = srcBase + pop;
+				double held = unavailableSource[idx];
+	
+				destination[idx] += held;
+				unavailableDestination[idx] += held;
+			}
+	
+			// Transport only available cells.
+			for (int e = edgeStart[src]; e < edgeStart[src + 1]; e++) {
+	
+				int dst = edgeDest[e];
+				int dstBase = dst * nPop;
+				double p = edgeProb[e];
+				boolean moved = dst != src;
+	
+				for (int pop = popStart; pop < popEnd; pop++) {
+	
+					int srcIdx = srcBase + pop;
+	
+					double eligible =
+							source[srcIdx] - unavailableSource[srcIdx];
+	
+					if (eligible < 0.0) {
+						if (eligible < -1e-10 *
+								Math.max(1.0, source[srcIdx]))
+							throw new IllegalStateException(
+									"Unavailable exceeds abundance at index "
+									+ srcIdx);
+	
+						eligible = 0.0;
+					}
+	
+					double amount = p * eligible;
+	
+					destination[dstBase + pop] += amount;
+	
+					if (moved)
+						unavailableDestination[dstBase + pop] += amount;
+				}
+			}
+		}
+	}
+	}
+	
+	private void switchDormancy() {
         double f = settings.sci.dormantFrac;
         double tau = settings.sci.dormantTauDay;
         double dtDay = settings.sci.dispHours / 24.0;
@@ -482,28 +653,36 @@ public final class ContinuousModel {
             double dToA = d * pDA;
             active[i] = a - aToD + dToA;
             dormant[i] = d + aToD - dToA;
+
+			if (activeUnavailable != null) {
+			
+				double uA = activeUnavailable[i];
+				double uD = dormantUnavailable[i];
+			
+				double uAToD = uA * pAD;
+				double uDToA = uD * pDA;
+			
+				activeUnavailable[i] = uA - uAToD + uDToA;
+				dormantUnavailable[i] = uD + uAToD - uDToA;
+			}
         }
     }
 
-    private int temperatureIndex(long hour) {
-        if (!settings.isSelective || tempIntervals == 1)
-            return 0;
-        long day = hour / 24L;
-        int dayOfYear = (int)(day % 360L);
-        int idx = (int)Math.floor(dayOfYear / (360.0 / tempIntervals));
-        return Math.min(idx, tempIntervals - 1);
-    }
-
-    private void updateThermalGrowth(int tempIndex) {
-        for (int loc = 0; loc < nLoc; loc++) {
-            int base = loc * nPop;
-            double tEnv = temperatures[loc][tempIndex];
-            for (int pop = 0; pop < nPop; pop++)
-                thermalGrowth[base + pop] = SelLineage.tempFunc(
-                        populations[pop].tOpt, tEnv, settings.sci.W);
-        }
-        currentTempIndex = tempIndex;
-    }
+	private void updateThermalGrowth(double hour) {
+		for (int loc = 0; loc < nLoc; loc++) {
+	
+			int base = loc * nPop;
+			double tEnv = temperatureForcing.at(loc, hour);
+	
+			for (int pop = 0; pop < nPop; pop++) {
+				thermalGrowth[base + pop] = SelLineage.tempFunc(
+						populations[pop].tOpt,
+						tEnv,
+						settings.sci.W
+				);
+			}
+		}
+	}
 
     private int index(int loc, int pop) {
         return loc * nPop + pop;
@@ -552,113 +731,4 @@ public final class ContinuousModel {
         return values;
     }
 
-    private static double[][] loadTemperatures(String filename, int nLoc) throws Exception {
-        if (filename == null)
-            return null;
-        double[][] result = new double[nLoc][];
-        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-            String line;
-            int loc = 0;
-            int nCols = -1;
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) continue;
-                if (loc >= nLoc)
-                    throw new IllegalArgumentException("Temperature file has more than NUM_BOXES rows");
-                String[] bits = line.trim().split("[,\\s]+");
-                if (nCols < 0) nCols = bits.length;
-                if (bits.length != nCols)
-                    throw new IllegalArgumentException("Temperature file has inconsistent column counts");
-                result[loc] = new double[nCols];
-                for (int i = 0; i < nCols; i++)
-                    result[loc][i] = Double.parseDouble(bits[i]);
-                loc++;
-            }
-            if (loc != nLoc)
-                throw new IllegalArgumentException(
-                        "Temperature file rows (" + loc + ") != NUM_BOXES (" + nLoc + ")");
-        }
-        return result;
-    }
-
-    private static final class Edge {
-        final int src, dst;
-        final double p;
-        Edge(int src, int dst, double p) { this.src = src; this.dst = dst; this.p = p; }
-    }
-
-    private static final class Transport {
-        final int[] edgeStart, edgeDest;
-        final double[] edgeProb;
-        Transport(int[] edgeStart, int[] edgeDest, double[] edgeProb) {
-            this.edgeStart = edgeStart;
-            this.edgeDest = edgeDest;
-            this.edgeProb = edgeProb;
-        }
-    }
-
-    private static Transport loadTransport(String filename, int nLoc, double scaler) throws Exception {
-        if (filename == null)
-            throw new IllegalArgumentException("Continuous mode requires TM_FILE");
-        List<Edge> edges = new ArrayList<>();
-        double[] moveSum = new double[nLoc];
-        int maxSource = -1;
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) continue;
-                String[] bits = line.trim().split("\\s+");
-                int src = (int)Double.parseDouble(bits[0]) - 1;
-                int dst = (int)Double.parseDouble(bits[1]) - 1;
-                double p = Double.parseDouble(bits[2]) * scaler;
-                maxSource = Math.max(maxSource, src);
-                if (src < 0 || src >= nLoc || dst < 0 || dst >= nLoc)
-                    continue;
-                if (src != dst && p != 0.0) {
-                    if (p < 0.0)
-                        throw new IllegalArgumentException("Negative transport probability");
-                    edges.add(new Edge(src, dst, p));
-                    moveSum[src] += p;
-                }
-            }
-        }
-        if (maxSource + 1 != nLoc)
-            throw new IllegalArgumentException("NUM_BOXES does not match transport matrix source count");
-
-        edges.sort((a, b) -> a.src != b.src ? Integer.compare(a.src, b.src) : Integer.compare(a.dst, b.dst));
-
-        // Build one source-major sparse list containing both stay and movement.
-        // Each source has exactly one diagonal entry, stored first, followed by
-        // its off-diagonal destinations. This lets transport use one edge loop.
-        int[] moveStart = new int[nLoc + 1];
-        for (Edge e : edges) moveStart[e.src + 1]++;
-        for (int i = 1; i <= nLoc; i++) moveStart[i] += moveStart[i - 1];
-
-        int[] edgeStart = new int[nLoc + 1];
-        for (int src = 0; src < nLoc; src++)
-            edgeStart[src + 1] = edgeStart[src] + 1 + (moveStart[src + 1] - moveStart[src]);
-
-        int[] dest = new int[edges.size() + nLoc];
-        double[] prob = new double[edges.size() + nLoc];
-
-        for (int src = 0; src < nLoc; src++) {
-            if (moveSum[src] > 1.0 + 1e-12)
-                throw new IllegalArgumentException(
-                        "DISP_SCALER gives total movement probability > 1 at location " + src
-                        + ": " + moveSum[src]);
-
-            int out = edgeStart[src];
-            dest[out] = src;
-            prob[out] = Math.max(0.0, 1.0 - moveSum[src]);
-            out++;
-
-            for (int i = moveStart[src]; i < moveStart[src + 1]; i++) {
-                Edge e = edges.get(i);
-                dest[out] = e.dst;
-                prob[out] = e.p;
-                out++;
-            }
-        }
-        return new Transport(edgeStart, dest, prob);
-    }
 }
