@@ -88,32 +88,27 @@ public final class ContinuousModel {
         this.nLoc = settings.numBoxes;
         this.temperatureForcing = TemperatureForcing.load(settings.sci.tempFile, nLoc);
 
-        double[] offsets = parseOffsets(settings.continuous.phenotypeOffsets);
-        switch (settings.continuous.initMode) {
-			case "one_per_location":
-				if (offsets.length != 1 || offsets[0] != 0.0)
-					throw new IllegalArgumentException(
-							"CONT_INIT_MODE=one_per_location requires CONT_PHENOTYPE_OFFSETS=0.0");
-				phenotypesPerLocation = 1;
-				break;
+	switch (settings.sci.initMode) {
+	
+		case "local_singletons":
+		case "global_equal":
+			phenotypesPerLocation = settings.sci.K;
+			break;
+	
+		case "local_dominant":
+			phenotypesPerLocation = 1;
+			break;
 		
-			case "local_phenotypes":
-				if (offsets.length < 1)
-					throw new IllegalArgumentException(
-							"CONT_PHENOTYPE_OFFSETS must contain at least one value");
-				phenotypesPerLocation = offsets.length;
-				break;
-		
-			case "global_phenotypes":
-				phenotypesPerLocation = settings.continuous.globalPhenotypeCount;
-				break;
-		
-			default:
-				throw new IllegalArgumentException(
-						"Unknown CONT_INIT_MODE: " + settings.continuous.initMode);
-		}
-
-        this.nPop = settings.continuous.initMode.equals("global_phenotypes")
+		case "local_phenotypes":
+			phenotypesPerLocation = settings.continuous.globalPhenotypeCount;
+			break;
+	
+		default:
+			throw new IllegalArgumentException(
+					"Unknown INIT_MODE: " + settings.sci.initMode);
+	}
+	
+	this.nPop = settings.sci.initMode.equals("global_equal")
 			? phenotypesPerLocation
 			: Math.multiplyExact(nLoc, phenotypesPerLocation);
         long nState = (long)nLoc * nPop;
@@ -138,7 +133,7 @@ public final class ContinuousModel {
         }
 
         locationTotal = new double[nLoc];
-        populations = initialisePopulations(offsets);
+        populations = initialisePopulations();
         
 
         workerCount = Math.min(settings.continuous.numWorkers, nPop);
@@ -185,57 +180,98 @@ public final class ContinuousModel {
 		}
     }
 
-    private PopulationMeta[] initialisePopulations(double[] offsets) {
+	private PopulationMeta[] initialisePopulations() {
+	
 		PopulationMeta[] meta = new PopulationMeta[nPop];
-		double abundancePerPhenotype = settings.continuous.initMode.equals("global_phenotypes")
-			? (double) settings.sci.K / phenotypesPerLocation
-			: settings.initialP / phenotypesPerLocation;
 	
-		if (settings.continuous.initMode.equals("global_phenotypes")) {
+		String mode = settings.sci.initMode;
+		boolean global = mode.equals("global_equal");
 	
-			int n = phenotypesPerLocation;
+		double min = Double.NaN;
+		double max = Double.NaN;
 	
-			double tMin = settings.continuous.globalPhenotypeMin;
-			double tMax = settings.continuous.globalPhenotypeMax;
+		if (settings.isSelective && global) {
+			min = temperatureForcing.minAnnualMean();
+			max = temperatureForcing.maxAnnualMean();
+		}
 	
-			// Create globally shared lineages with evenly spaced thermal optima.
-			for (int ph = 0; ph < n; ph++) {
+		if (global) {
 	
-				double tOpt = n == 1
-						? tMin
-						: tMin + (tMax - tMin) * ph / (n - 1.0);
+			// Globally shared lineages.
+			for (int ph = 0; ph < nPop; ph++) {
+	
+				float tOpt = Float.NaN;
+	
+				if (settings.isSelective) {
+					tOpt = (float)(
+							nPop == 1
+									? (min + max) / 2.0
+									: min + (max - min) * ph / (nPop - 1.0)
+					);
+				}
 	
 				meta[ph] = new PopulationMeta(
 						ph + 1L,
 						-1,
 						ph,
-						(float)tOpt
+						tOpt
 				);
 			}
 	
-			// Initialise every lineage in every province.
+			// One individual of every lineage in every location.
 			for (int loc = 0; loc < nLoc; loc++) {
-				for (int ph = 0; ph < n; ph++) {
-					active[index(loc, ph)] = abundancePerPhenotype;
+				for (int ph = 0; ph < nPop; ph++) {
+					active[index(loc, ph)] = 1.0;
 				}
 			}
 	
 		} else {
 	
-			// Preserve the original local initialisation behaviour.
+			// Locally unique lineages.
 			for (int loc = 0; loc < nLoc; loc++) {
+	
 				for (int ph = 0; ph < phenotypesPerLocation; ph++) {
-	
+				
 					int pop = loc * phenotypesPerLocation + ph;
-					long id = (long)loc * settings.mutantOffset + ph + 1L;
-	
+				
+					long id = (long) loc * settings.mutantOffset
+							+ ph + 1L;
+				
 					float tOpt = Float.NaN;
-
-					if (settings.isSelective)
-						tOpt = (float)(temperatureForcing.at(loc, 0.0) + offsets[ph]);
-	
-					meta[pop] = new PopulationMeta(id, loc, ph, tOpt);
-					active[index(loc, pop)] = abundancePerPhenotype;
+				
+					if (settings.isSelective) {
+				
+						if (mode.equals("local_phenotypes")) {
+				
+							min = settings.continuous.globalPhenotypeMin;
+							max = settings.continuous.globalPhenotypeMax;
+				
+							tOpt = (float)(
+									phenotypesPerLocation == 1
+											? (min + max) / 2.0
+											: min + (max - min) * ph
+													/ (phenotypesPerLocation - 1.0)
+							);
+				
+						} else {
+				
+							tOpt = (float) temperatureForcing.annualMean(loc);
+						}
+					}
+				
+					meta[pop] = new PopulationMeta(
+							id,
+							loc,
+							ph,
+							tOpt
+					);
+				
+					active[index(loc, pop)] =
+							mode.equals("local_dominant")
+									? settings.sci.K
+									: mode.equals("local_phenotypes")
+											? (double) settings.sci.K / phenotypesPerLocation
+											: 1.0;
 				}
 			}
 		}
@@ -458,7 +494,7 @@ public final class ContinuousModel {
                         ? settings.growthRate
                         : Math.max(0.0, 1.0 - total / K) * settings.growthRate;
                 double mortality = settings.sci.topDown
-                        ? settings.mortality * total / K
+                        ? settings.mortality * total
                         : settings.mortality;
 
                 double survival = 1.0 - mortality;

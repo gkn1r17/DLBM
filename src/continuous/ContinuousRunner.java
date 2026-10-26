@@ -42,7 +42,7 @@ public final class ContinuousRunner {
                 writePopulationMetadata(runDir, model, settings);
 
             System.out.println("Continuous deterministic dLBM");
-            System.out.println("Initialisation: " + settings.continuous.initMode);
+            System.out.println("Initialisation: " + settings.sci.initMode);
             System.out.println("Locations: " + model.getNumLocations());
             System.out.println("Populations: " + model.getNumPopulations());
             System.out.println("Phenotypes per location: " + model.getPhenotypesPerLocation());

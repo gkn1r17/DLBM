@@ -16,6 +16,7 @@ import cern.jet.random.Poisson;
 import cern.jet.random.engine.DRand;
 import lineages.Lineage;
 import transportMatrix.GridBox;
+import util.StochasticProfiler;
 
 public class Cluster{ 
 	private final DRand rd;
@@ -37,18 +38,34 @@ public class Cluster{
 	 * @throws Exception
 	 */
 	public void update(int tempTsindx, long hour) throws Exception {
-		//combine immigrants dispersed in last update
-		     // (if output saved will have already happened - will have no affect)    
-		     // (has to happen in separate loop so doesn't accidentally include next time steps immigrants)
-		for(GridBox box : gridBoxes) 
+
+		if (!StochasticProfiler.ENABLED) {
+			for (GridBox box : gridBoxes)
+				box.combineImmigrants();
+
+			for (GridBox box : gridBoxes)
+				box.update(rd, bn, pn, tempTsindx, hour);
+
+			return;
+		}
+
+		long start = StochasticProfiler.cpuTime();
+
+		// Merge immigrants from the preceding dispersal interval.
+		for (GridBox box : gridBoxes)
 			box.combineImmigrants();
+
+		StochasticProfiler.immigration.add(StochasticProfiler.cpuTime() - start);
 		
-		//main update loop for each grid box= growth, selection, mortality, dispersal
-		for(GridBox box : gridBoxes)
+		start = StochasticProfiler.cpuTime();
+
+		// Ecology and dispersal, measured together initially.
+		for (GridBox box : gridBoxes)
 			box.update(rd, bn, pn, tempTsindx, hour);
 
+		StochasticProfiler.ecology.add(StochasticProfiler.cpuTime() - start);
 	}
-
+	
 	public void addGridBox(GridBox gridBox) {
 		gridBoxes.add(gridBox);
 		gridBox.setupParallelization();

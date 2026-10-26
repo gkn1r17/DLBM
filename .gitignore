@@ -2,3 +2,4 @@ target/
 output/*
 !output/.gitkeep
 .DS_Store
+*.gif

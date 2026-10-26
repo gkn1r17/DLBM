@@ -23,6 +23,7 @@ import parallelization.Cluster;
 import dispersal.DispersalHandler;
 import parallelization.GridBoxParallelization;
 import util.ProbFunctions;
+import util.StochasticProfiler;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -101,15 +102,24 @@ private final long minID;
 		
 		population = new TreeSet<Lineage>();
 		     
-		if(Runner.settings.ctrl.tracerMode) {						
-			population.add(Lineage.makeNew(minID, myLinSize, 0, tempLins, null));
-		}
-		else {
-			//create all lineages
-			for(long i = minID; i < minID + numLins; i++)
-				population.add(Lineage.makeNew(i, myLinSize, 0, tempLins, null));				
-
-			//add initial population. Parent = -1 = no parent
+		if (Runner.settings.ctrl.tracerMode) {
+		
+			population.add(Lineage.makeNew(
+					minID, myLinSize, 0, tempLins, null));
+		
+		} else {
+		
+			boolean global =
+					Runner.settings.sci.initMode.equals("global_equal");
+		
+			for (int i = 0; i < numLins; i++) {
+		
+				long lineageId = global ? i + 1L : minID + i;
+		
+				population.add(Lineage.makeNew(
+						lineageId, myLinSize, 0, tempLins, null));
+			}
+		
 			phylogeny.addInitialPopulation(numLins);
 		}
 		
@@ -273,6 +283,13 @@ private final long minID;
 	 * @throws Exception
 	 */
 	public void growDieMutateAll(DRand rd, Binomial bn, Poisson pn, boolean dispersing, boolean tempChanged, long hour) throws Exception {
+
+		final boolean profiling = StochasticProfiler.ENABLED;
+		
+		long growthCalls = 0;
+		long dispersalCalls = 0;
+		long dormancyCalls = 0;
+		
 		boolean willGrow = Runner.settings.sci.topDown ? true : myCC > size;
 		
 		
@@ -281,7 +298,7 @@ private final long minID;
 				Runner.settings.growthRate
 				: ((1.0 - ((double)size / myCC)) * Runner.settings.growthRate);
 		double mort = Runner.settings.sci.topDown ? 
-				(Runner.settings.mortality / myCC) * size
+				Runner.settings.mortality * size
 				: Runner.settings.mortality;
 		
 		
@@ -298,22 +315,33 @@ private final long minID;
 			if(s.size == 0)
 					continue;
 
-			//grow/die
-			if(!s.isDormant() && !Runner.settings.ctrl.tracerMode)
-				size += s.growDie(willGrow, gr, mort, currentTemp, 
+			// Grow/die
+			if (!s.isDormant() && !Runner.settings.ctrl.tracerMode) {
+			
+				size += s.growDie(willGrow, gr, mort, currentTemp,
 						tempChanged, this, pn, bn, rd, phylogeny, mutants, hour);
 			
+				if (profiling)
+					growthCalls++;
+			}
 			
-			//disperse
-			if(dispersing && s.size > 0) {
+			
+			// Dispersal
+			if (dispersing && s.size > 0) {
+			
 				size -= dispBinomial(s, bn, rd);
-				
-				//active/dormant switching
-				if(Runner.settings.sci.dormantFrac > 0 && s.size > 0) {
+			
+				if (profiling)
+					dispersalCalls++;
+			
+				// Active/dormant switching
+				if (Runner.settings.sci.dormantFrac > 0 && s.size > 0) {
+			
 					switchDormancy(s, bn, rd, dormancyTransfers);
+			
+					if (profiling)
+						dormancyCalls++;
 				}
-				
-
 			}
 			
 			if(size < 0)
@@ -339,8 +367,14 @@ private final long minID;
 			}
 		}
 		
-		//remove state records with zero abundance
+		// Remove state records with zero abundance
 		population.removeIf(s -> s.size == 0);
+		
+		if (profiling) {
+			StochasticProfiler.growthCalls.add(growthCalls);
+			StochasticProfiler.dispersalCalls.add(dispersalCalls);
+			StochasticProfiler.dormancyCalls.add(dormancyCalls);
+		}
 		
 		}
 
@@ -578,54 +612,52 @@ private final long minID;
 		 * @return
 		 */
 		public void initIDSizeTemp(ConcurrentHashMap<Long, Float> tempLins) {
-			
-			
-			
-			//set initial population size at equilibrium
-			size = (int) Math.round(Runner.settings.initialP);
-			
-			//number of lineages to start with
-			numLins = (int) Math.round((double)size / (double)Runner.settings.sci.initLinSize);
-			
-			
-			if(Runner.settings.sci.initLinSize == Runner.settings.initialP) { //one lineage per location scenario
+		
+			size = Runner.settings.sci.K;
+		
+			String mode = Runner.settings.sci.initMode;
+		
+			if (Runner.settings.ctrl.tracerMode || mode.equals("local_dominant")) {
 				myLinSize = size;
 				numLins = 1;
-				
-			}else //multiple lineages per location
-				myLinSize = Runner.settings.sci.initLinSize;
-			
-			//adjust initial population size to exact multiple of number of lineages
-					//(not relevant if one individual per lineage equal to equilibrium size)
-			size = myLinSize * numLins;
-			
-			if(Runner.settings.ctrl.tracerMode)
-				numLins = 1;
-
-			
-					//alternative simpler indexing (but breaks back compatibility: ) 
-					//begin = (int) (id * (1e5 * 2) );
-
-
-			
-			/////////// TEMPERATURE STUFF ////////////////////////
-			if(Runner.settings.isSelective) {
-			
-				double curTemp = currentTemp;
-			
-				for(long i = minID; i < minID + numLins; i++) {
-			
-					if(Runner.settings.ctrl.loadFile == null)
-						tempLins.put(i, (float) curTemp);
+			} else {
+				myLinSize = 1;
+				numLins = size;
+			}
+		
+			if (numLins >= Runner.settings.mutantOffset)
+				throw new IllegalArgumentException(
+						"K exceeds lineage ID space per province");
+		
+			if (Runner.settings.isSelective
+					&& Runner.settings.ctrl.loadFile == null) {
+		
+				if (mode.equals("global_equal")) {
+		
+					double min = Runner.temperatureForcing.minAnnualMean();
+					double max = Runner.temperatureForcing.maxAnnualMean();
+		
+					for (int i = 0; i < numLins; i++) {
+		
+						float tOpt = (float)(
+								numLins == 1
+										? (min + max) / 2.0
+										: min + (max - min) * i / (numLins - 1.0)
+						);
+		
+						tempLins.putIfAbsent(i + 1L, tOpt);
+					}
+		
+				} else {
+		
+					float annualMean =
+							(float) Runner.temperatureForcing.annualMean(id);
+		
+					for (int i = 0; i < numLins; i++)
+						tempLins.put(minID + i, annualMean);
 				}
-			
 			}
-			
-			}
-
-
-
-
+		}
 
 
 

@@ -32,7 +32,37 @@ public final class TemperatureForcing {
         return new TemperatureForcing(fields);
     }
 
-    public boolean isSeasonal() {
+	/** Annual mean SST for a location. */
+	public double annualMean(int box) {
+		double sum = 0.0;
+	
+		for (double[] field : fields)
+			sum += field[box];
+	
+		return Math.rint(sum / fields.length);
+	}
+	
+	/** Minimum annual mean SST across all locations. */
+	public double minAnnualMean() {
+		double min = Double.POSITIVE_INFINITY;
+	
+		for (int box = 0; box < fields[0].length; box++)
+			min = Math.min(min, annualMean(box));
+	
+		return min;
+	}
+	
+	/** Maximum annual mean SST across all locations. */
+	public double maxAnnualMean() {
+		double max = Double.NEGATIVE_INFINITY;
+	
+		for (int box = 0; box < fields[0].length; box++)
+			max = Math.max(max, annualMean(box));
+	
+		return max;
+	}
+	
+	public boolean isSeasonal() {
         return fields.length == 12;
     }
 

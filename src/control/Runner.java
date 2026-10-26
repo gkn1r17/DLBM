@@ -52,6 +52,7 @@ import parallelization.Node;
 import parallelization.RunnerParallelization;
 import test.GridBoxForComparison;
 import transportMatrix.GridBox;
+import util.StochasticProfiler;
 import transportMatrix.Phylogeny;
 
 public class Runner {
@@ -395,6 +396,9 @@ public class Runner {
 	 * @param startTime 
 	 */
 	private static void runAll(String[] args) throws Exception {
+	
+		StochasticProfiler.start();
+	
 		long hour = 0;
 		long day = 0;
 		Output out = new Output();
@@ -457,7 +461,15 @@ public class Runner {
 				runState.hour = hour;
 				
 				// Update seasonal transport before starting parallel ecological operations.
-				updateTransport(hour, transportBoxes);
+				if (StochasticProfiler.ENABLED) {
+					long timer = System.nanoTime();
+				
+					updateTransport(hour, transportBoxes);
+				
+					StochasticProfiler.forcing.add(System.nanoTime() - timer);
+				} else {
+					updateTransport(hour, transportBoxes);
+				}
 				
 				// RUN MAIN LOOP
 				runParallel.runEcologyAndDispersal(day, tempTidx, hour);
@@ -468,15 +480,24 @@ public class Runner {
 				if (unavailableDays > 0 &&
 						hour % (unavailableDays * 24L) == 0) {
 				
+					long timer = StochasticProfiler.ENABLED
+							? System.nanoTime() : 0L;
+				
 					for (GridBox box : activeBoxes) {
 						box.combineImmigrants();
 						box.resetAvailability();
 					}
+				
+					if (StochasticProfiler.ENABLED)
+						StochasticProfiler.holding.add(System.nanoTime() - timer);
 				}
 				//
 				
 				
 							///////////////////// OUTPUT ///////////////////////
+
+							long outputTimer = StochasticProfiler.ENABLED
+									? System.nanoTime() : 0L;
 							
 							
 							//check if saving interval and if so save to file
@@ -521,6 +542,23 @@ public class Runner {
 							
 								int checkpointGlobalDiversity = runParallel.getAllLineageIDs(activeBoxes, hour).length;
 								out.checkPoint(hour, activeBoxes, checkLetter, checkpointGlobalDiversity);
+								
+								if (StochasticProfiler.ENABLED) {
+									long localRecords = 0;
+								
+									for (GridBox box : activeBoxes)
+										localRecords += box.getPopulation().size();
+								
+									System.out.printf(
+											"Profile day %d: global lineages = %d, "
+											+ "local lineage records = %d, "
+											+ "mean per location = %.2f%n",
+											day,
+											checkpointGlobalDiversity,
+											localRecords,
+											(double) localRecords / activeBoxes.size()
+									);
+								}
 								if(checkLetter == 'A')
 									checkLetter = 'B';
 								else 
@@ -535,6 +573,9 @@ public class Runner {
 							
 							////////////////////////////////////////////////////////////
 
+			    if (StochasticProfiler.ENABLED)
+					StochasticProfiler.output.add(
+							System.nanoTime() - outputTimer);
 			}
 			//***************************** END OF RUN LOOP 
 			
@@ -558,6 +599,8 @@ public class Runner {
 		
 		runParallel.closeParallel();
 		runState.finished = true;
+		
+		StochasticProfiler.report();
 	}
 	
 	

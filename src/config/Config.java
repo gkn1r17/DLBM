@@ -106,8 +106,8 @@ public class Config {
 		
 		//---------- SCIENTIFIC CALCULATED
 		mortality = ctrl.tracerMode
-					? 0
-					: 1.0 - Math.exp(-sci.mortalityDay * (sci.growthHours / 24.0));      	
+				? 0
+				: (1.0 - Math.exp(-sci.growthRateDay * (sci.growthHours / 24.0))) / sci.K;
 		
 		growthRate = ctrl.tracerMode 
 				  ?   0 	  
@@ -115,9 +115,7 @@ public class Config {
 
 		growthPerDisp = sci.dispHours / sci.growthHours;
 	
-		initialP = sci.K * ( sci.topDown 
-				  ?    1.0
-				  :    1 - (sci.growthRateDay / sci.mortalityDay) );
+		initialP = sci.K;
 
 		numBoxes = sci.numBoxes;
 

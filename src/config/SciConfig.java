@@ -15,11 +15,13 @@ package config;
 public class SciConfig {
 			
 
+			/** Initial population configuration. */
+			public final String initMode;
 			
-			
-			/**number of individuals per lineage at start */
+			/** Number of individuals per lineage at start (legacy setting). */
 			public final int initLinSize;
-			/**Carrying Capacity (K) */
+			
+			/** Carrying capacity (K). */
 			public final int K;
 
 			
@@ -30,8 +32,6 @@ public class SciConfig {
 
 			
 			// GROWTH
-			/**mortality per day*/
-			public final double mortalityDay;
 			/**growth rate per day*/
 			public final double growthRateDay;
 			/**number of hours between growth/mortality timesteps*/
@@ -101,14 +101,26 @@ public class SciConfig {
 			////////////////////////////////////////////////Ecological //////////////////////////////////////////////			
 			
 			growthRateDay = Double.parseDouble(iniFR.getParamValue("GROWTH_RATE_DAY", "Ecological", false));
-			mortalityDay = Double.parseDouble(iniFR.getParamValue("MORTALITY_DAY", "Ecological", false));
 			mutation = Double.parseDouble(iniFR.getParamValue("MUTATION", "Ecological", false));
 			topDown = iniFR.getParamValue("TOP_DOWN", "Ecological", false).trim().toLowerCase().equals("true");
 			
 			////////////////////////////////////////////////population //////////////////////////////////////////////			
 
 			K = Integer.parseInt(iniFR.getParamValue("K", "Population", false));
-			initLinSize = Integer.parseInt(iniFR.getParamValue("INIT_LIN_SIZE", "Population", false));
+			
+			initMode = iniFR.getParamValue("INIT_MODE", "Population", false).trim().toLowerCase();
+			
+			if (!initMode.equals("local_singletons")
+					&& !initMode.equals("local_dominant")
+					&& !initMode.equals("global_equal")
+					&& !initMode.equals("local_phenotypes")) {
+				throw new IllegalArgumentException("Unknown INIT_MODE: " + initMode);
+			}
+			
+			if (K < 1)
+				throw new IllegalArgumentException("K must be >= 1");
+			
+			initLinSize = initMode.equals("local_dominant") ? K : 1;
 			
 			////////////////////////////////////////////////TransportMatrix //////////////////////////////////////////////			
 
