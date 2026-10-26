@@ -34,7 +34,10 @@ public final class ContinuousRunner {
 			String runDir = null;
             if (PROFILE_WRITE_OUTPUT) {
                 runDir = makeRunDirectory(settings);
-                FileIO.makeSettingsFile(runDir, settings.getSettingsIniOut());
+                FileIO.makeSettingsFile(
+					runDir,
+					settings.getSettingsIniOut(),
+					"continuous");
             }
 
             ContinuousModel model = new ContinuousModel(settings);

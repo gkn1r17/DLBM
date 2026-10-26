@@ -125,7 +125,10 @@ public class Output {
 		//
 		
 		if(isController)
-			FileIO.makeSettingsFile(Runner.runState.simName, Runner.settings.getSettingsIniOut());
+			FileIO.makeSettingsFile(
+				Runner.runState.simName,
+				Runner.settings.getSettingsIniOut(),
+				"discrete");
 		
 		debug.oldGlobalDiversity = globalDiversity;
 

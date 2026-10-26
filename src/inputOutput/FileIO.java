@@ -486,27 +486,45 @@ public class FileIO {
 	}
 
 
-
-
-
-
-
-
-	/**record settings in file 
-	 * @throws IOException */
-	public static void makeSettingsFile(String filename, String settingsStr) throws IOException {
-		
-		//create directory
-		File outFile = new File(filename + "/Settings.ini");
-		
-		//save
+	public static void makeSettingsFile(
+			String filename,
+			String settingsStr,
+			String model) throws IOException {
+	
+		// Create output directory.
+		File directory = new File(filename);
+		if (!directory.exists() && !directory.mkdirs()) {
+			throw new IOException("Cannot create output directory: " + filename);
+		}
+	
+		// Write simulation configuration.
+		File outFile = new File(directory, "Settings.ini");
+	
+		try (FileWriter writer = new FileWriter(outFile, false)) {
+			writer.write("[head]\n" + settingsStr);
+			writer.write("\n[Run]\nMODEL=" + model + "\n");
+		}
+	
+		// Record Git revision and any uncommitted changes.
 		try {
-			FileWriter outFileWriter = new FileWriter(outFile,false);
-			outFileWriter.write("[head]\n" + settingsStr);
-			outFileWriter.close();
-		} catch (IOException e) {
-			throw e;
-		}				
+			Process process = new ProcessBuilder(
+					"bash",
+					"gitCheckStatus.sh",
+					directory.getAbsolutePath())
+					.inheritIO()
+					.start();
+	
+			int exitCode = process.waitFor();
+	
+			if (exitCode != 0) {
+				throw new IOException(
+						"Git status check failed with exit code " + exitCode);
+			}
+	
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IOException("Git status check interrupted", e);
+		}
 	}
 
 
