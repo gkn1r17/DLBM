@@ -23,6 +23,9 @@ public class SciConfig {
 			
 			/** Carrying capacity (K). */
 			public final int K;
+			
+			/** Minimum viable local lineage abundance in continuous simulations. */
+			public final double minViablePop;
 
 			
 			//TRANSPORT MATRIX
@@ -107,6 +110,13 @@ public class SciConfig {
 			////////////////////////////////////////////////population //////////////////////////////////////////////			
 
 			K = Integer.parseInt(iniFR.getParamValue("K", "Population", false));
+			
+			minViablePop = Double.parseDouble(
+					iniFR.getParamValue("MIN_VIABLE_POP", "Population", false));
+			
+			if (!Double.isFinite(minViablePop) || minViablePop < 0.0)
+				throw new IllegalArgumentException(
+						"MIN_VIABLE_POP must be finite and >= 0");
 			
 			initMode = iniFR.getParamValue("INIT_MODE", "Population", false).trim().toLowerCase();
 			

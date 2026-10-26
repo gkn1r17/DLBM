@@ -360,6 +360,12 @@ public final class ContinuousModel {
             switchDormancy();
         }
 
+        // Remove locally nonviable lineages after transport and dormancy.
+        if (settings.sci.minViablePop > 0.0) {
+            removeNonviablePopulations();
+            refreshLocationTotals();
+        }
+
         // Restore transport eligibility at the end of each holding interval.
 		if (activeUnavailable != null &&
 				hour % (settings.sci.unavailableDays * 24L) == 0) {
@@ -675,6 +681,37 @@ public final class ContinuousModel {
 	}
 	}
 	
+	/**
+     * Eliminate local lineages whose combined active and dormant
+     * abundance falls below the minimum viable population.
+     */
+    private void removeNonviablePopulations() {
+
+        final double threshold = settings.sci.minViablePop;
+
+        for (int i = 0; i < active.length; i++) {
+
+            double total = active[i];
+
+            if (dormant != null)
+                total += dormant[i];
+
+            if (total < threshold) {
+
+                active[i] = 0.0;
+
+                if (dormant != null)
+                    dormant[i] = 0.0;
+
+                if (activeUnavailable != null)
+                    activeUnavailable[i] = 0.0;
+
+                if (dormantUnavailable != null)
+                    dormantUnavailable[i] = 0.0;
+            }
+        }
+    }
+
 	private void switchDormancy() {
         double f = settings.sci.dormantFrac;
         double tau = settings.sci.dormantTauDay;
